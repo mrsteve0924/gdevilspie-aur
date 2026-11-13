@@ -1,0 +1,2352 @@
+--- a/gdevilspie
++++ b/gdevilspie
+@@ -1,4 +1,4 @@
+-#!/usr/bin/python
++#!/usr/bin/python3
+ #
+ # gdevilspie.py
+ # Copyright (C) Islam Amer 2008 <iamer@open-craft.com>
+@@ -18,52 +18,32 @@
+ 
+ # Import needed modules
+ 
++import gettext
+ import os
+-import sys
+-import commands
+ import signal
+ import subprocess
+-import string
+-import gDevilspie.reader as reader
++import sys
+ import tempfile
+-try:
+-	import gobject
+-	import pygtk
+-	pygtk.require('2.0')
+-	import gtk
+-	import gtk.glade
+-except:
+-	print "pyGTK is not correctly installed, exiting."
+-	sys.exit(1)
+-
+-DISABLE_FILLER=""
+-try:
+-	import gDevilspie.filler as filler
+-except:
+-	error = gtk.MessageDialog(None, 0, gtk.MESSAGE_ERROR, gtk.BUTTONS_CLOSE, "Make sure that Python-Wnck is correctly installed for 'filler' module to run properly.")
+-	response = error.run()
+-	error.destroy()
+-	DISABLE_FILLER="True"
+-
+-DISABLE_XDG=""
+-try:
+-    import xdg.DesktopEntry
+-except:
+-	error = gtk.MessageDialog(None, 0, gtk.MESSAGE_ERROR, gtk.BUTTONS_CLOSE, "Make sure that Python-xdg is correctly installed if you need autostart handling.")
+-	response = error.run()
+-	error.destroy()
+-	DISABLE_XDG="True"
++from pathlib import Path
++
++import gi
++
++gi.require_version("Gtk", "3.0")
++gi.require_version("Gdk", "3.0")
++gi.require_version("GdkX11", "3.0")
++from gi.repository import Gdk, GdkX11, Gtk
++
++from xdg.BaseDirectory import xdg_config_home
++from xdg.DesktopEntry import DesktopEntry
++
++import gDevilspie.reader as reader
++import gDevilspie.filler as filler
+ 
+-import gettext
+ _ = gettext.gettext
+ PACKAGE = "gdevilspie"
+-# FIXME
+-# LOCALEDIR = @localedir@
+ LOCALEDIR = "locale"
+ gettext.bindtextdomain(PACKAGE, LOCALEDIR)
+ gettext.textdomain(PACKAGE)
+-gtk.glade.bindtextdomain(PACKAGE, LOCALEDIR)
+-gtk.glade.textdomain(PACKAGE)
+ 
+ # List of possible match criteria
+ match_criteria={
+@@ -105,69 +85,69 @@
+ }
+ 
+ def toggle_this(widget, str, match_criteria_name):
+-	match_criteria[match_criteria_name][str+"_not"]= not match_criteria[match_criteria_name][str+"_not"]
+-	return
++        match_criteria[match_criteria_name][str+"_not"]= not match_criteria[match_criteria_name][str+"_not"]
++        return
+ 
+ def create_match_parameters_page(match_criteria_name):
+-	vbox = gtk.VBox()
+-	str = match_criteria[match_criteria_name]["description"]
+-	description_text = gtk.Label(str)
+-	description_text.set_use_markup(True)
+-	description_text.set_line_wrap(True)
+-	vbox.pack_start(description_text, False, False)
+-	
+-	# three hboxes
+-	hbox_is, hbox_contains, hbox_matches = gtk.HBox(), gtk.HBox(), gtk.HBox()
+-
+-	# Three Check boxes for negation
+-	match_criteria[match_criteria_name]["is_not_checkbox"] = gtk.CheckButton("does not")
+-	match_criteria[match_criteria_name]["contains_not_checkbox"] = gtk.CheckButton("does not")
+-	match_criteria[match_criteria_name]["matches_not_checkbox"] = gtk.CheckButton("does not")
+-	
+-	is_not_checkbox = match_criteria[match_criteria_name]["is_not_checkbox"]
+-	contains_not_checkbox = match_criteria[match_criteria_name]["contains_not_checkbox"]
+-	matches_not_checkbox = match_criteria[match_criteria_name]["matches_not_checkbox"]
+-
+-	# We have to reflect the check box state somewhere
+-	is_not_checkbox.connect("toggled", toggle_this, "is", match_criteria_name)
+-	contains_not_checkbox.connect("toggled", toggle_this, "contains", match_criteria_name)
+-	matches_not_checkbox.connect("toggled", toggle_this, "matches", match_criteria_name)
+-	   
+-	# Three text entries
+-	match_criteria[match_criteria_name]["entry_is"] = gtk.Entry()
+-	match_criteria[match_criteria_name]["entry_contains"] = gtk.Entry()
+-	match_criteria[match_criteria_name]["entry_matches"] = gtk.Entry()
+-
+-	entry_is = match_criteria[match_criteria_name]["entry_is"]
+-	entry_contains = match_criteria[match_criteria_name]["entry_contains"]
+-	entry_matches = match_criteria[match_criteria_name]["entry_matches"]
+-
+-	# Three labels
+-	MatchMethod_text_is=gtk.Label(_("equal(s)"))
+-	MatchMethod_text_contains=gtk.Label(_("contain(s)"))
+-	MatchMethod_text_matches=gtk.Label(_("match(es)"))
+-	
+-	# Pack the triads
+-	hbox_is.pack_start(is_not_checkbox, False, False)
+-	hbox_contains.pack_start(contains_not_checkbox, False, False)
+-	hbox_matches.pack_start(matches_not_checkbox, False, False)
+-	
+-	hbox_is.pack_end(entry_is, False, False)
+-	hbox_contains.pack_end(entry_contains, False, False)
+-	hbox_matches.pack_end(entry_matches, False, False)
+-	
+-	hbox_is.pack_end(MatchMethod_text_is, True, False)
+-	hbox_contains.pack_end(MatchMethod_text_contains, True, False)
+-	hbox_matches.pack_end(MatchMethod_text_matches, True, False)
+-	
+-	# pack the rows
+-	vbox.pack_start(hbox_is, True, False)
+-	vbox.pack_start(hbox_contains, True, False)
+-	vbox.pack_start(hbox_matches, True, False)
+-	
+-	# return the vbox we built so it gets packed into the property page 
+-	return vbox
+-	
++        vbox = Gtk.VBox()
++        str = match_criteria[match_criteria_name]["description"]
++        description_text = Gtk.Label(label=str)
++        description_text.set_use_markup(True)
++        description_text.set_line_wrap(True)
++        vbox.pack_start(description_text, False, False, 0)
++        
++        # three hboxes
++        hbox_is, hbox_contains, hbox_matches = Gtk.HBox(), Gtk.HBox(), Gtk.HBox()
++
++        # Three Check boxes for negation
++        match_criteria[match_criteria_name]["is_not_checkbox"] = Gtk.CheckButton(label="does not")
++        match_criteria[match_criteria_name]["contains_not_checkbox"] = Gtk.CheckButton(label="does not")
++        match_criteria[match_criteria_name]["matches_not_checkbox"] = Gtk.CheckButton(label="does not")
++        
++        is_not_checkbox = match_criteria[match_criteria_name]["is_not_checkbox"]
++        contains_not_checkbox = match_criteria[match_criteria_name]["contains_not_checkbox"]
++        matches_not_checkbox = match_criteria[match_criteria_name]["matches_not_checkbox"]
++
++        # We have to reflect the check box state somewhere
++        is_not_checkbox.connect("toggled", toggle_this, "is", match_criteria_name)
++        contains_not_checkbox.connect("toggled", toggle_this, "contains", match_criteria_name)
++        matches_not_checkbox.connect("toggled", toggle_this, "matches", match_criteria_name)
++           
++        # Three text entries
++        match_criteria[match_criteria_name]["entry_is"] = Gtk.Entry()
++        match_criteria[match_criteria_name]["entry_contains"] = Gtk.Entry()
++        match_criteria[match_criteria_name]["entry_matches"] = Gtk.Entry()
++
++        entry_is = match_criteria[match_criteria_name]["entry_is"]
++        entry_contains = match_criteria[match_criteria_name]["entry_contains"]
++        entry_matches = match_criteria[match_criteria_name]["entry_matches"]
++
++        # Three labels
++        MatchMethod_text_is=Gtk.Label(label=_("equal(s)"))
++        MatchMethod_text_contains=Gtk.Label(label=_("contain(s)"))
++        MatchMethod_text_matches=Gtk.Label(label=_("match(es)"))
++        
++        # Pack the triads
++        hbox_is.pack_start(is_not_checkbox, False, False, 0)
++        hbox_contains.pack_start(contains_not_checkbox, False, False, 0)
++        hbox_matches.pack_start(matches_not_checkbox, False, False, 0)
++        
++        hbox_is.pack_end(entry_is, False, False, 0)
++        hbox_contains.pack_end(entry_contains, False, False, 0)
++        hbox_matches.pack_end(entry_matches, False, False, 0)
++        
++        hbox_is.pack_end(MatchMethod_text_is, True, False, 0)
++        hbox_contains.pack_end(MatchMethod_text_contains, True, False, 0)
++        hbox_matches.pack_end(MatchMethod_text_matches, True, False, 0)
++        
++        # pack the rows
++        vbox.pack_start(hbox_is, True, False, 0)
++        vbox.pack_start(hbox_contains, True, False, 0)
++        vbox.pack_start(hbox_matches, True, False, 0)
++        
++        # return the vbox we built so it gets packed into the property page 
++        return vbox
++        
+ 
+ 
+ 
+@@ -205,117 +185,105 @@
+ }
+ 
+ def create_action_parameters_page(action_name):
+-	vbox = gtk.VBox()
+-	str = actions_dict[action_name]["description"]
+-	description_text = gtk.Label(str)
+-	description_text.set_use_markup(True)
+-	description_text.set_line_wrap(True)
+-	vbox.pack_start(description_text, False, False, 10)
+-	if ( actions_dict[action_name].has_key("input") ):
+-		InputType = actions_dict[action_name]["type"]
+-		for key in actions_dict[action_name]["input"]:
+-			if ( InputType == "Text" ):
+-				entry = gtk.Entry()
+-			elif ( InputType == "Spin" ):
+-				entry = gtk.SpinButton(gtk.Adjustment(0, 0, 100, 1, 0, 0) , 1, 0)
+-			elif (InputType == "Combo" ):
+-				entry = gtk.combo_box_new_text()
+-				for choice in actions_dict[action_name]["Choices"]:
+-					entry.append_text(choice)
+-					entry.set_active(0)
+-			actions_dict[action_name]["input"][key] = entry
+-			hbox = gtk.HBox()
+-			label = gtk.Label(key)
+-			hbox.pack_start(label, True, True, 10)
+-			hbox.pack_start(entry, True, False, 10)
+-			vbox.pack_start(hbox, True, False, 10)
+-	return vbox
++        vbox = Gtk.VBox()
++        str = actions_dict[action_name]["description"]
++        description_text = Gtk.Label(label=str)
++        description_text.set_use_markup(True)
++        description_text.set_line_wrap(True)
++        vbox.pack_start(description_text, False, False, 10)
++        if ( "input" in actions_dict[action_name] ):
++                InputType = actions_dict[action_name]["type"]
++                for key in actions_dict[action_name]["input"]:
++                        if ( InputType == "Text" ):
++                                entry = Gtk.Entry()
++                        elif ( InputType == "Spin" ):
++                                entry = Gtk.SpinButton.new(Gtk.Adjustment.new(0, 0, 100, 1, 0, 0), 1, 0)
++                        elif (InputType == "Combo" ):
++                                entry = Gtk.ComboBoxText()
++                                for choice in actions_dict[action_name]["Choices"]:
++                                        entry.append_text(choice)
++                                        entry.set_active(0)
++                        actions_dict[action_name]["input"][key] = entry
++                        hbox = Gtk.HBox()
++                        label = Gtk.Label(label=key)
++                        hbox.pack_start(label, True, True, 10)
++                        hbox.pack_start(entry, True, False, 10)
++                        vbox.pack_start(hbox, True, False, 10)
++        return vbox
+ 
+ 
+ # generated rule storage
+ 
+ def generate_rule(generated_rule):
+-	part0 = "( if \n"
+-	part1 = "( begin \n"
+-	part2 = generate_match_criteria()
+-	part3 = ") \n" + "( begin \n"
+-	part4 = generate_actions()
+-	part5 = "( println \"match\" )\n"
+-	part6 = ")\n)\n"
+-	generated_rule = part0 + part1 + part2 + part3 + part4 + part5 + part6
+-	return generated_rule
++        part0 = "( if \n"
++        part1 = "( begin \n"
++        part2 = generate_match_criteria()
++        part3 = ") \n" + "( begin \n"
++        part4 = generate_actions()
++        part5 = "( println \"match\" )\n"
++        part6 = ")\n)\n"
++        generated_rule = part0 + part1 + part2 + part3 + part4 + part5 + part6
++        return generated_rule
+ 
+ def generate_match_criteria():
+-  strous=""
+-  for row in MainWindow.RuleEdit.match_list_store:
+-	match_method = row[1]
+-	if ( row[0] == True ):
+-	  for prop in ["is", "contains", "matches"]:
+-		entry = "entry_" + prop
+-		negation = prop + "_not"
+-		entry_text = match_criteria[match_method][entry].get_text()
+-		negation_state = match_criteria[match_method][negation]
+-		if ( entry_text != "" ):
+-		  storing=""
+-		  if ( negation_state == True ):
+-			storing = "( " + "not "+ "( " + prop
+-		  else:
+-			storing = "( " + prop
+-		  storing = storing + " ( " + match_method + " ) "
+-		  storing = storing + '"' + entry_text + '"' + " )"
+-		  if ( negation_state == True ):
+-			storing = storing + " )"
+-		  storing = storing + "\n"
+-	  strous += storing
+-  return strous
++    conditions = []
++    for enabled, match_method in MainWindow.RuleEdit.match_list_store:
++        if not enabled:
++            continue
++        fields = match_criteria[match_method]
++        for operator in ("is", "contains", "matches"):
++            text = fields["entry_" + operator].get_text()
++            if text:
++                condition = f'( {operator} ( {match_method} ) "{text}" )'
++                if fields[operator + "_not"]:
++                    condition = f"( not {condition} )"
++                conditions.append(condition + "\n")
++    return "".join(conditions)
+ 
+ def generate_actions():
+-	strous = ""
+-	for row in MainWindow.RuleEdit.actions_list_store:
+-		action_name = row[1]
+-		if ( row[0] == True ):
+-			storing = action_name
+-			if actions_dict[action_name].has_key("input"):
+-				if ( action_name == "geometry" ):
+-				  xposition = actions_dict[action_name]["input"]["xposition"].get_text()
+-				  yposition = actions_dict[action_name]["input"]["yposition"].get_text()
+-				  height = actions_dict[action_name]["input"]["height"].get_text()
+-				  width = actions_dict[action_name]["input"]["width"].get_text()
+-				  if ( width == "" ) or ( height == "" ):
+-				  	size = ""
+-				  else:
+-				  	size = width + "x" + height
+-				  geomstring = size + "+" + xposition + "+" + yposition
+-				  storing = storing + " \"" + geomstring + "\""
+-				elif ( action_name == "set_viewport" ) or ( action_name == "set_workspace" ) or ( action_name == "opacity" ):
+-					for key in actions_dict[action_name]["input"]:
+-						storing = storing + " " + str(actions_dict[action_name]["input"][key].get_value_as_int())
+-				elif ( action_name == "wintype" ):
+-					for key in actions_dict[action_name]["input"]:
+-						storing = storing + " \"" + actions_dict[action_name]["input"][key].get_active_text() + "\""
+-				else:
+-				  for key in actions_dict[action_name]["input"]:
+-					storing = storing + " \"" + actions_dict[action_name]["input"][key].get_text() + "\""
+-			strous += "( " + storing + " )\n"
+-	return strous
+-
+-# Glade file used in all classes
+-if os.path.isfile(os.path.dirname(sys.argv[0])+'/gdevilspie.glade'):
+-	gladefile = os.path.dirname(sys.argv[0])+'/gdevilspie.glade'
+-elif os.path.isfile(os.path.dirname(sys.argv[0]) + '/../share/gdevilspie/gdevilspie.glade'):
+-	gladefile = os.path.dirname(sys.argv[0])+'/../share/gdevilspie/gdevilspie.glade'
+-else:
+-	gtk.MessageDialog(None, 0, gtk.MESSAGE_ERROR, gtk.BUTTONS_CLOSE, "Glade file not found, exiting.").run()
+-	quit()
+-
+-
+-# icon used
+-if os.path.isfile(os.path.dirname(sys.argv[0])+'/gdevilspie.png'):
+-	gdevilspie_icon = os.path.dirname(sys.argv[0])+'/gdevilspie.png'
+-elif os.path.isfile(os.path.dirname(sys.argv[0]) + '/../share/gdevilspie/gdevilspie.png'):
+-	gdevilspie_icon = os.path.dirname(sys.argv[0])+'/../share/gdevilspie/gdevilspie.png'
+-else:
+-	gtk.MessageDialog(None, 0, gtk.MESSAGE_ERROR, gtk.BUTTONS_CLOSE, "Icon file not found.").run()
++        strous = ""
++        for row in MainWindow.RuleEdit.actions_list_store:
++                action_name = row[1]
++                if ( row[0] == True ):
++                        storing = action_name
++                        if "input" in actions_dict[action_name]:
++                                if ( action_name == "geometry" ):
++                                  xposition = actions_dict[action_name]["input"]["xposition"].get_text()
++                                  yposition = actions_dict[action_name]["input"]["yposition"].get_text()
++                                  height = actions_dict[action_name]["input"]["height"].get_text()
++                                  width = actions_dict[action_name]["input"]["width"].get_text()
++                                  if ( width == "" ) or ( height == "" ):
++                                        size = ""
++                                  else:
++                                        size = width + "x" + height
++                                  geomstring = size + "+" + xposition + "+" + yposition
++                                  storing = storing + " \"" + geomstring + "\""
++                                elif ( action_name == "set_viewport" ) or ( action_name == "set_workspace" ) or ( action_name == "opacity" ):
++                                        for key in actions_dict[action_name]["input"]:
++                                                storing = storing + " " + str(actions_dict[action_name]["input"][key].get_value_as_int())
++                                elif ( action_name == "wintype" ):
++                                        for key in actions_dict[action_name]["input"]:
++                                                storing = storing + " \"" + actions_dict[action_name]["input"][key].get_active_text() + "\""
++                                else:
++                                  for key in actions_dict[action_name]["input"]:
++                                        storing = storing + " \"" + actions_dict[action_name]["input"][key].get_text() + "\""
++                        strous += "( " + storing + " )\n"
++        return strous
++
++# Locate UI files in either the source tree or the installed package.
++data_dir = Path(__file__).resolve().parent
++if not (data_dir / "gdevilspie.glade").is_file():
++    data_dir = data_dir.parent / "share" / "gdevilspie"
++gladefile = str(data_dir / "gdevilspie.glade")
++gdevilspie_icon = str(data_dir / "gdevilspie.png")
++autostart_file = Path(xdg_config_home) / "autostart" / "devilspie.desktop"
++
++
++def load_ui(*object_ids):
++    builder = Gtk.Builder()
++    builder.add_objects_from_file(gladefile, list(object_ids))
++    return builder
++
+ 
+ # Directory where we store .ds files
+ dir = os.path.expanduser("~/.devilspie")
+@@ -324,523 +292,499 @@
+ class RulesListWindow:
+ # Initialization of the class
+   def __init__(self):
+-	try:
+-	  # try to get our widgets from the gladefile
+-	  wTreeList = gtk.glade.XML (gladefile, "RulesList")
+-	  wTreeStatusPopupMenu = gtk.glade.XML (gladefile, "StatusPopupMenu")
+-	  wTreeAbout = gtk.glade.XML (gladefile, "AboutgDevilepie")
+-	except:
+-	#inform the user there was an error and exit
+-		gtk.MessageDialog(None, 0, gtk.MESSAGE_ERROR, gtk.BUTTONS_CLOSE, _("Glade file not found, exiting.")).run()
+-		quit()
+-
+-	self.AboutgDevilepie = wTreeAbout.get_widget("AboutgDevilepie")
+-	# Get the widgets that we will work with RulesList is the window, and RulesTree is the tree list of rules
+-	self.RulesList = wTreeList.get_widget("RulesList")
+-	self.RulesTree = wTreeList.get_widget("RulesTree")
+-	self.DaemonStatus = wTreeList.get_widget("DaemonStatus")
+-	self.ToggleDaemon = wTreeList.get_widget("ToggleDaemon")
+-	self.DaemonAutostart = wTreeList.get_widget("DaemonAutostart")
+-	self.ToggleDaemonLabel = wTreeList.get_widget("ToggleDaemonLabel")
+-	self.StatusPopupMenu = wTreeStatusPopupMenu.get_widget("StatusPopupMenu")
+-	# connect the signals to callbacks
+-	wTreeList.signal_autoconnect(self)
+-	wTreeStatusPopupMenu.signal_autoconnect(self)
+-	# create a liststore model which takes one string, the rule name
+-	self.rules_list_store = gtk.ListStore(str)
+-	self.RulesTree.connect("row-activated", self.on_RulesTree_row_activated)
+-	
+-	# connect the model to the tree view
+-	self.RulesTree.set_model(self.rules_list_store)
+-
+-	# pack a single column that has a text cell into the tree view
+-	self.RulesFilesNames=gtk.TreeViewColumn('Rule Name')
+-	self.RulesTree.append_column(self.RulesFilesNames)
+-	self.RuleFileName=gtk.CellRendererText()
+-	self.RulesFilesNames.pack_start(self.RuleFileName,expand=True)
+-	self.RulesFilesNames.add_attribute(self.RuleFileName, 'text', 0)
+-	
+-	# if we have a config dir list the files inside otherwise try to create it
+-	if (os.path.exists(dir)):
+-	  if (os.path.isdir(dir)):
+-		self.fill_rules_list()
+-	  else:
+-		  print _("~/.devilspie is a file, please remove it")
+-	else:
+-		  os.makedirs(dir)
+-	self.RulesTree.set_cursor(0, None, False)
+-	
+-	self.UpdateDaemonStatus() 
+-	self.UpdateAutostartStatus()
+-
+-	# Tray Icon (Not working properly yet)
+-	self.tray = gtk.StatusIcon()
+-	self.tray.set_from_file(gdevilspie_icon)
+-	self.tray.set_tooltip(_("gDevilspie"))
+-	self.tray.set_blinking(False)
+-	self.tray.connect("activate", self.on_tray_activate)
+-	self.tray.connect("popup-menu", self.on_tray_popup)
++        ui = load_ui("RulesList", "StatusPopupMenu", "AboutgDevilepie")
++        self.RulesList = ui.get_object("RulesList")
++        self.RulesList.set_icon_from_file(gdevilspie_icon)
++        self.AboutgDevilepie = ui.get_object("AboutgDevilepie")
++        self.AboutgDevilepie.set_transient_for(self.RulesList)
++        self.AboutgDevilepie.set_logo(self.RulesList.get_icon())
++        self.RulesTree = ui.get_object("RulesTree")
++        self.DaemonStatus = ui.get_object("DaemonStatus")
++        self.ToggleDaemon = ui.get_object("ToggleDaemon")
++        self.DaemonAutostart = ui.get_object("DaemonAutostart")
++        self.ToggleDaemonLabel = ui.get_object("ToggleDaemonLabel")
++        self.StatusPopupMenu = ui.get_object("StatusPopupMenu")
++        # create a liststore model which takes one string, the rule name
++        self.rules_list_store = Gtk.ListStore(str)
++        self.RulesTree.connect("row-activated", self.on_RulesTree_row_activated)
++        
++        # connect the model to the tree view
++        self.RulesTree.set_model(self.rules_list_store)
++
++        # pack a single column that has a text cell into the tree view
++        self.RulesFilesNames=Gtk.TreeViewColumn('Rule Name')
++        self.RulesTree.append_column(self.RulesFilesNames)
++        self.RuleFileName=Gtk.CellRendererText()
++        self.RulesFilesNames.pack_start(self.RuleFileName,expand=True)
++        self.RulesFilesNames.add_attribute(self.RuleFileName, 'text', 0)
++        
++        # if we have a config dir list the files inside otherwise try to create it
++        if (os.path.exists(dir)):
++          if (os.path.isdir(dir)):
++                self.fill_rules_list()
++          else:
++                  print(_("~/.devilspie is a file, please remove it"))
++        else:
++                  os.makedirs(dir)
++        if len(self.rules_list_store):
++            self.RulesTree.set_cursor(Gtk.TreePath.new_from_indices([0]), None, False)
++        
++        self.UpdateDaemonStatus() 
++        self.UpdateAutostartStatus()
++        ui.connect_signals(self)
++
++        # Tray Icon (Not working properly yet)
++        self.tray = Gtk.StatusIcon()
++        self.tray.set_from_file(gdevilspie_icon)
++        self.tray.set_tooltip_text(_("gDevilspie"))
++        self.tray.connect("activate", self.on_tray_activate)
++        self.tray.connect("popup-menu", self.on_tray_popup)
+ 
+-	# display the main window
+-	self.RulesList.show_all()  
++        # display the main window
++        self.RulesList.show_all()  
+ 
+   def on_tray_activate(self, widget):
+-	# toggle view of main window
+-	if ( self.RulesList.get_property("visible") == True):
+-	  self.RulesList.hide_all()
+-	elif ( self.RulesList.get_property("visible") == False):
+-	  self.RulesList.show_all()
++        # toggle view of main window
++        if ( self.RulesList.get_property("visible") == True):
++          self.RulesList.hide()
++        elif ( self.RulesList.get_property("visible") == False):
++          self.RulesList.show_all()
+   
+   def on_tray_popup(self, widget, button, activate_time):
+-	self.StatusPopupMenu.popup(None, None, None, button, activate_time)
+-	
++        self.StatusPopupMenu.popup(None, None, Gtk.StatusIcon.position_menu, widget, button, activate_time)
++        
+   def on_About_activate(self, widget):
+-	self.AboutgDevilepie.show_all
+-	response = self.AboutgDevilepie.run()
+-	self.AboutgDevilepie.hide()
++        self.AboutgDevilepie.show_all()
++        response = self.AboutgDevilepie.run()
++        self.AboutgDevilepie.hide()
+   
+   def on_Quit_activate(self, widget):
+-	gtk.main_quit()
+-	
++        Gtk.main_quit()
++        
+   # handle exiting the program  
+   def on_RulesList_destroy(self,widget):
+-	gtk.main_quit()
++        Gtk.main_quit()
+ 
+   def on_Quit_clicked(self, widget):
+-	gtk.main_quit()
++        Gtk.main_quit()
+ 
+   # make a rule creator instance
+   def on_AddRule_clicked(self, widget):
+-	self.RuleEdit = RuleEditorWindow()
++        self.RuleEdit = RuleEditorWindow()
+ 
+   def on_RulesTree_row_activated(self, widget, path, view_column):
+-	self.on_EditRule_clicked(widget)  
+-	
++        self.on_EditRule_clicked(widget)  
++        
+   def on_EditRule_clicked(self, widget): 
+-	  self.RuleEdit = RuleEditorWindow()
+-	  SelectedRow = self.RulesTree.get_selection()
+-	  (model, iter) = SelectedRow.get_selected()
+-	  if (iter != None):
+-		SelectedRule = self.rules_list_store.get(iter, 0)
+-		RuleFile = os.path.expanduser("~/.devilspie/") + SelectedRule[0] + '.ds'
+-		if (os.path.exists(RuleFile)):
+-			self.RuleEdit.RuleName_entry.set_text(SelectedRule[0])
+-			matdict , actiondict = reader.read_file(RuleFile)
+-			self.Parse_EditRule(matdict, actiondict)
+-			
++          SelectedRow = self.RulesTree.get_selection()
++          (model, iter) = SelectedRow.get_selected()
++          if (iter != None):
++                self.RuleEdit = RuleEditorWindow()
++                SelectedRule = self.rules_list_store.get(iter, 0)
++                RuleFile = os.path.expanduser("~/.devilspie/") + SelectedRule[0] + '.ds'
++                if (os.path.exists(RuleFile)):
++                        self.RuleEdit.RuleName_entry.set_text(SelectedRule[0])
++                        matdict , actiondict = reader.read_file(RuleFile)
++                        self.Parse_EditRule(matdict, actiondict)
++                        
+   def Parse_EditRule(self, matdict, actiondict):
+-			for key in matdict:
+-				for match_row in self.RuleEdit.match_list_store:
+-					if ( match_row[1] == key ):
+-						match_row[0] = True
+-				if 'is' in matdict[key]:
+-					if 'not' in matdict[key]:
+-						matdict[key].remove('not')
+-						match_criteria[key]["is_not_checkbox"].set_active(True)
+-						match_criteria[key]["is_not"] = True
+-					matdict[key].remove('is')
+-					match_criteria[key]["entry_is"].set_text(matdict[key][0])
+-				if 'contains' in matdict[key]:
+-					if 'not' in matdict[key]:
+-						matdict[key].remove('not')
+-						match_criteria[key]["contains_not_checkbox"].set_active(True)
+-						match_criteria[key]["contains_not"] = True
+-					matdict[key].remove('contains')
+-					match_criteria[key]["entry_contains"].set_text(matdict[key][0])
+-				if 'matches' in matdict[key]:
+-					if 'not' in matdict[key]:
+-						matdict[key].remove('not')
+-						match_criteria[key]["matches_not_checkbox"].set_active(True)
+-						match_criteria[key]["matches_not"] = True
+-					matdict[key].remove('matches')
+-					match_criteria[key]["entry_matches"].set_text(matdict[key][0])
+-			for key in actiondict:
+-				for action_row in self.RuleEdit.actions_list_store:
+-					if ( action_row[1] == key ):
+-						if ( actiondict[key] != "False" ):
+-							action_row[0] = True
+-							if ( actions_dict[key].has_key("input") ):
+-								input_type = actions_dict[key]["type"]
+-								for input_field in actions_dict[key]["input"]:
+-									if ( input_type == "Text" ):
+-										if ( key == "geometry" ):
+-											geom_parts = self.parse_geom(input_field, actiondict[key])
+-											actions_dict[key]["input"][input_field].set_text(geom_parts[input_field])
+-										else:
+-											actions_dict[key]["input"][input_field].set_text(actiondict[key])
+-									elif ( input_type == "Spin" ):
+-										actions_dict[key]["input"][input_field].set_value(int(actiondict[key]))
+-									elif ( input_type == "Combo" ):
+-										index = actions_dict[key]["Choices"].index(actiondict[key])
+-										actions_dict[key]["input"][input_field].set_active(index)
++                        for key in matdict:
++                                for match_row in self.RuleEdit.match_list_store:
++                                        if ( match_row[1] == key ):
++                                                match_row[0] = True
++                                if 'is' in matdict[key]:
++                                        if 'not' in matdict[key]:
++                                                matdict[key].remove('not')
++                                                match_criteria[key]["is_not_checkbox"].set_active(True)
++                                                match_criteria[key]["is_not"] = True
++                                        matdict[key].remove('is')
++                                        match_criteria[key]["entry_is"].set_text(matdict[key][0])
++                                if 'contains' in matdict[key]:
++                                        if 'not' in matdict[key]:
++                                                matdict[key].remove('not')
++                                                match_criteria[key]["contains_not_checkbox"].set_active(True)
++                                                match_criteria[key]["contains_not"] = True
++                                        matdict[key].remove('contains')
++                                        match_criteria[key]["entry_contains"].set_text(matdict[key][0])
++                                if 'matches' in matdict[key]:
++                                        if 'not' in matdict[key]:
++                                                matdict[key].remove('not')
++                                                match_criteria[key]["matches_not_checkbox"].set_active(True)
++                                                match_criteria[key]["matches_not"] = True
++                                        matdict[key].remove('matches')
++                                        match_criteria[key]["entry_matches"].set_text(matdict[key][0])
++                        for key in actiondict:
++                                for action_row in self.RuleEdit.actions_list_store:
++                                        if ( action_row[1] == key ):
++                                                if ( actiondict[key] != "False" ):
++                                                        action_row[0] = True
++                                                        if ( "input" in actions_dict[key] ):
++                                                                input_type = actions_dict[key]["type"]
++                                                                for input_field in actions_dict[key]["input"]:
++                                                                        if ( input_type == "Text" ):
++                                                                                if ( key == "geometry" ):
++                                                                                        geom_parts = self.parse_geom(input_field, actiondict[key])
++                                                                                        actions_dict[key]["input"][input_field].set_text(geom_parts[input_field])
++                                                                                else:
++                                                                                        actions_dict[key]["input"][input_field].set_text(actiondict[key])
++                                                                        elif ( input_type == "Spin" ):
++                                                                                actions_dict[key]["input"][input_field].set_value(int(actiondict[key]))
++                                                                        elif ( input_type == "Combo" ):
++                                                                                index = actions_dict[key]["Choices"].index(actiondict[key])
++                                                                                actions_dict[key]["input"][input_field].set_active(index)
+   
+   def parse_geom(self, input_field, geom_string):
+-	geom_string = geom_string.strip('"')
+-	if ( geom_string[0] == '+' ):
+-		geom_string = geom_string[1:]
+-  	split1 = geom_string.split('+')
+-  	if ( len(split1) == 1 ):
+-  		split2 = split1.split('x')
+-  		parsed_geom = { "width" : split2[0] , "height" : split2[1] , "xposition" : "" , "ypostion" : "" }
+-  		return parsed_geom
+-  	elif (len(split1) == 2 ):
+-  		parsed_geom = { "width" : "" , "height" : "" , "xposition" : split1[0] , "yposition" : split1[1] }
+-  		return parsed_geom
+-  	elif (len(split1) == 3 ):
+-  		split2 = split1[0].split('x')
+-  		parsed_geom = { "width" : split2[0] , "height" : split2[1] , "xposition" : split1[1] , "yposition" : split1[2] }
+-  		return parsed_geom
+-  					
++        geom_string = geom_string.strip('"')
++        if ( geom_string[0] == '+' ):
++                geom_string = geom_string[1:]
++        split1 = geom_string.split('+')
++        if ( len(split1) == 1 ):
++                split2 = split1[0].split('x')
++                parsed_geom = { "width" : split2[0] , "height" : split2[1] , "xposition" : "" , "yposition" : "" }
++                return parsed_geom
++        elif (len(split1) == 2 ):
++                parsed_geom = { "width" : "" , "height" : "" , "xposition" : split1[0] , "yposition" : split1[1] }
++                return parsed_geom
++        elif (len(split1) == 3 ):
++                split2 = split1[0].split('x')
++                parsed_geom = { "width" : split2[0] , "height" : split2[1] , "xposition" : split1[1] , "yposition" : split1[2] }
++                return parsed_geom
++                                        
+   def UpdateDaemonStatus(self):
+-	prog = commands.getoutput("pgrep -x devilspie -u $USER")
+-	if ( prog == "" ):
+-	  # daemon not running
+-	  self.DaemonStatus.set_markup(_("<b>The devilspie daemon is <span foreground=\"red\">not</span> running.</b>"))
+-	  self.ToggleDaemonLabel.set_markup(_("<b><span foreground=\"dark green\">Start</span></b>"))
+-	  return 1
+-	else:
+-	  self.DaemonStatus.set_markup(_("<b>The devilspie daemon is <span foreground=\"dark green\">running.</span></b>"))
+-	  self.ToggleDaemonLabel.set_markup(_("<b><span foreground=\"red\">Stop</span></b>"))
+-	  return prog
+-	
++        prog = subprocess.run(["pgrep", "-x", "-u", str(os.getuid()), "devilspie"],
++                              capture_output=True, text=True).stdout.strip()
++        if ( prog == "" ):
++          # daemon not running
++          self.DaemonStatus.set_markup(_("<b>The devilspie daemon is <span foreground=\"red\">not</span> running.</b>"))
++          self.ToggleDaemonLabel.set_markup(_("<b><span foreground=\"dark green\">Start</span></b>"))
++          return 1
++        else:
++          self.DaemonStatus.set_markup(_("<b>The devilspie daemon is <span foreground=\"dark green\">running.</span></b>"))
++          self.ToggleDaemonLabel.set_markup(_("<b><span foreground=\"red\">Stop</span></b>"))
++          return prog
++        
+   def toggle_daemon(self, request):
+-  	status = self.UpdateDaemonStatus()
+-	if ( status == 1 ):
+-		try:
+-			self.devilspie_process = subprocess.Popen(['devilspie','-a'] , stdin=None, stdout=None, stderr=None, env=os.environ)
+-		except OSError:
+-			error = gtk.MessageDialog(self.RulesList, gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, _("There was an error starting the devilspie daemon. Please check that it is installed somewhere included in the PATH and try again."))
+-			response = error.run()
+-			error.destroy()
+-  	else: # kill it
+-  		if ( self.__dict__.has_key("devilspie_process") ):
+-  			try:
+-	  			os.kill(int(status),signal.SIGKILL)
+-  			except OSError:
+-				pass
+-  			self.devilspie_process.wait()
+-  			del self.__dict__["devilspie_process"]
+-  		else:
+-			#error = gtk.MessageDialog(self.RulesList, gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_INFO, gtk.BUTTONS_OK, "The devilspie daemon was started somewhere else. Trying to handle it here.")
+-			#response = error.run()
+-			#error.destroy()
+-			try:
+-				status = status.split()
+-				for instance in status :
+-					os.kill(int(instance),signal.SIGKILL)
+-			except OSError:
+-				pass
+-			if ( request == "Start" ):
+-				self.toggle_daemon(None)
+-  	status = self.UpdateDaemonStatus()
+-  	return
+-		
++        status = self.UpdateDaemonStatus()
++        if ( status == 1 ):
++                try:
++                        self.devilspie_process = subprocess.Popen(['devilspie','-a'] , stdin=None, stdout=None, stderr=None, env=os.environ)
++                except OSError:
++                        error = Gtk.MessageDialog(self.RulesList, Gtk.DialogFlags.DESTROY_WITH_PARENT, Gtk.MessageType.ERROR, Gtk.ButtonsType.OK, _("There was an error starting the devilspie daemon. Please check that it is installed somewhere included in the PATH and try again."))
++                        response = error.run()
++                        error.destroy()
++        else: # kill it
++                if ( hasattr(self, "devilspie_process") ):
++                        try:
++                                os.kill(int(status),signal.SIGKILL)
++                        except OSError:
++                                pass
++                        self.devilspie_process.wait()
++                        del self.__dict__["devilspie_process"]
++                else:
++                        #error = Gtk.MessageDialog(self.RulesList, Gtk.DialogFlags.DESTROY_WITH_PARENT, Gtk.MessageType.INFO, Gtk.ButtonsType.OK, "The devilspie daemon was started somewhere else. Trying to handle it here.")
++                        #response = error.run()
++                        #error.destroy()
++                        try:
++                                status = status.split()
++                                for instance in status :
++                                        os.kill(int(instance),signal.SIGKILL)
++                        except OSError:
++                                pass
++                        if ( request == "Start" ):
++                                self.toggle_daemon(None)
++        status = self.UpdateDaemonStatus()
++        return
++                
+   def on_ToggleDaemon_clicked(self,widget):
+-	self.toggle_daemon(self.ToggleDaemonLabel.get_text())
++        self.toggle_daemon(self.ToggleDaemonLabel.get_text())
+  
+   def UpdateAutostartStatus(self):
+-		if ( DISABLE_XDG == "True" ):
+-				self.DaemonAutostart.set_sensitive(False)
+-		else:
+-				if (os.path.exists(xdg.DesktopEntry.xdg_config_home + "/autostart/devilspie.desktop")):
+-					df = xdg.DesktopEntry.DesktopEntry(xdg.DesktopEntry.xdg_config_home + "/autostart/devilspie.desktop")
+-					if (df.get('X-GNOME-Autostart-enabled') == 'true'):
+-							self.DaemonAutostart.set_active(True)
+-				else:
+-						df = xdg.DesktopEntry.DesktopEntry(xdg.DesktopEntry.xdg_config_home + "/autostart/devilspie.desktop")
+-						df.set('Name','Devilspie')
+-						df.set('Exec','devilspie')
+-						df.set('X-GNOME-Autostart-enabled','false')
+-						df.write()
+-
+-					
+-  def on_DaemonAutostart_toggled(self,widget):
+-			df = xdg.DesktopEntry.DesktopEntry(xdg.DesktopEntry.xdg_config_home + "/autostart/devilspie.desktop")
+-			if (widget.get_active()):
+-					df.set('X-GNOME-Autostart-enabled','true')
+-					df.write()
+-			else:
+-					df.set('X-GNOME-Autostart-enabled','false')
+-					df.write()
++        if autostart_file.exists():
++            entry = DesktopEntry(str(autostart_file))
++            self.DaemonAutostart.set_active(
++                not entry.getHidden() and entry.get("X-GNOME-Autostart-enabled") != "false"
++            )
++
++  def on_DaemonAutostart_toggled(self, widget):
++        active = widget.get_active()
++        if autostart_file.exists():
++            entry = DesktopEntry(str(autostart_file))
++        else:
++            entry = DesktopEntry()
++            entry.new(str(autostart_file))
++            entry.set("Type", "Application")
++            entry.set("Name", "Devilspie")
++            entry.set("Exec", "devilspie")
++
++        entry.set("Hidden", "false" if active else "true")
++        entry.set("X-GNOME-Autostart-enabled", "true" if active else "false")
++        autostart_file.parent.mkdir(parents=True, exist_ok=True)
++        entry.write()
+ 
+   # used to delete a rule
+   def on_DeleteRule_clicked(self,widget):
+    SelectedRow = self.RulesTree.get_selection()
+    (model, iter) = SelectedRow.get_selected()
+    if (iter != None):
+-	 SelectedRule = self.rules_list_store.get(iter, 0)
+-	 RuleFile = os.path.expanduser("~/.devilspie/") + SelectedRule[0] + '.ds'
+-	 if (os.path.exists(RuleFile)):
+-	   try:
+-		 error_dialog = gtk.MessageDialog(self.RulesList, gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_QUESTION, gtk.BUTTONS_YES_NO, _("Are you sure you want to remove the rule ") + SelectedRule[0] + "?")
+-		 response = error_dialog.run()
+-		 error_dialog.destroy()
+-		 if ( response == gtk.RESPONSE_YES ):
+-		   os.remove(RuleFile)
+-		   self.rules_list_store.remove(iter)
+-		 else:
+-		   return
+-	   except:
+-		 error_dialog = gtk.MessageDialog(self.RulesList, gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_ERROR, gtk.BUTTONS_CANCEL, _("Could not remove the rule, please check file permissions and try again."))
+-		 response = error_dialog.run()
+-		 error_dialog.destroy()
++         SelectedRule = self.rules_list_store.get(iter, 0)
++         RuleFile = os.path.expanduser("~/.devilspie/") + SelectedRule[0] + '.ds'
++         if (os.path.exists(RuleFile)):
++           try:
++                 error_dialog = Gtk.MessageDialog(self.RulesList, Gtk.DialogFlags.DESTROY_WITH_PARENT, Gtk.MessageType.QUESTION, Gtk.ButtonsType.YES_NO, _("Are you sure you want to remove the rule ") + SelectedRule[0] + "?")
++                 response = error_dialog.run()
++                 error_dialog.destroy()
++                 if ( response == Gtk.ResponseType.YES ):
++                   os.remove(RuleFile)
++                   self.rules_list_store.remove(iter)
++                 else:
++                   return
++           except:
++                 error_dialog = Gtk.MessageDialog(self.RulesList, Gtk.DialogFlags.DESTROY_WITH_PARENT, Gtk.MessageType.ERROR, Gtk.ButtonsType.CANCEL, _("Could not remove the rule, please check file permissions and try again."))
++                 response = error_dialog.run()
++                 error_dialog.destroy()
+   
+   # used to update the list after a delete or add  
+   def update_rules_list(self):
+-	self.rules_list_store.clear()
+-	self.fill_rules_list()
++        self.rules_list_store.clear()
++        self.fill_rules_list()
+   
+   # fill up the rules list with the names of the files that end with .ds  
+   def fill_rules_list(self):
+-	rulefileslist = os.listdir(dir)
+-	for rulefile in rulefileslist:
+-	  if (rulefile.endswith(".ds")):
+-		rulefile=gobject.filename_display_name(rulefile)
+-		rulefile=rulefile.replace(".ds","")
+-		self.rules_list_store.append([rulefile])
++        rulefileslist = os.listdir(dir)
++        for rulefile in rulefileslist:
++          if (rulefile.endswith(".ds")):
++                rulefile = rulefile[:-3]
++                self.rules_list_store.append([rulefile])
+ 
+ # This is the rule creator window
+ class RuleEditorWindow:
+   def __init__(self):
+-  # try to get our widgets from the gladefile
+-	try:
+-		wTreeEdit = gtk.glade.XML (gladefile, "RuleEdit")
+-	except:
+-		gtk.MessageDialog(None, 0, gtk.MESSAGE_ERROR, gtk.BUTTONS_CLOSE, _("Glade file not found, exiting.")).run()
+-		quit()
+-
+-	# get the widgets that we use
+-	# the window
+-	self.RuleEdit = wTreeEdit.get_widget("RuleEdit")
+-	# Match tree
+-	self.MatchTree = wTreeEdit.get_widget("MatchTree")
+-	# Actions tree
+-	self.ActionsTree = wTreeEdit.get_widget("ActionsTreeList")
+-	# Match parameters notebook
+-	self.MatchPropertyParameters_notebook = wTreeEdit.get_widget("MatchPropertyParameters_notebook")
+-	# Action parameters notebook
+-	self.ActionsParameters_notebook = wTreeEdit.get_widget("ActionsParameters_notebook")
+-	# rule name text box
+-	self.RuleName_entry = wTreeEdit.get_widget("RuleName_entry")
+-	# rule notebook
+-	self.RuleNotebook = wTreeEdit.get_widget("RuleNotebook")
+-	# Raw rule text view
+-	self.RawRule = wTreeEdit.get_widget("RawRule")
+-	# the text buffer to hold the raw rule.
+-	self.buffer = gtk.TextBuffer(None)
+-	# The save button
+-	self.Save_button = wTreeEdit.get_widget("Save")
+-
+-	# Connect to our signals
+-	wTreeEdit.signal_autoconnect (self)
+-
+-	# create list stores and connect the models to the tree views
+-	self.match_list_store = gtk.ListStore(bool, str)
+-	self.actions_list_store = gtk.ListStore(bool,str)
+-	self.MatchTree.set_model(self.match_list_store)
+-	self.ActionsTree.set_model(self.actions_list_store)
+-
+-	# Action tree has two columns with two cells. One cell is a checkbox and the other is text
+-	self.ActionsNames_column=gtk.TreeViewColumn('Action')
+-	self.ActionsEnable_column=gtk.TreeViewColumn('')
+-	self.ActionsTree.append_column(self.ActionsEnable_column)
+-	self.ActionsTree.append_column(self.ActionsNames_column)
+-	self.ActionsNames_cell=gtk.CellRendererText()
+-	self.ActionsEnable_cell=gtk.CellRendererToggle()
+-	self.ActionsEnable_cell.set_property("activatable", 1)
+-	
+-	self.ActionsEnable_column.pack_start(self.ActionsEnable_cell, expand=True)
+-	self.ActionsNames_column.pack_start(self.ActionsNames_cell, expand=True)
+-	
+-	self.ActionsNames_column.add_attribute(self.ActionsNames_cell, 'text', 1)
+-	self.ActionsEnable_column.add_attribute(self.ActionsEnable_cell, 'active', False)
+-	
+-	# Fill up the actions list store from the dictionary and create notebook pages for their parameters
+-	for Action in actions_dict:
+-	  self.actions_list_store.append([0, Action])
+-	  #actions_dict[Action] = gtk.Label(Action)
+-	  actions_dict[Action]["widget"] = create_action_parameters_page(Action)
+-	  self.ActionsParameters_notebook.insert_page(actions_dict[Action]["widget"], None)
+-	
+-	# Reflect the checkbox state in the model
+-	self.ActionsEnable_cell.connect("toggled", self.ActionsEnable_toggle)
+-	# Flip the notebook pages when the selection changes
+-	self.ActionsTree.connect("cursor-changed", self.Actions_selected)
+-	# Select first action for consistent look
+-	self.ActionsTree.set_cursor(0, None, False)
+-
+-	# Match tree has two columns with two cells. One cell is a checkbox and the other is text
+-	self.MatchPropertyNames_column=gtk.TreeViewColumn('Property')
+-	self.MatchPropertyEnable_column=gtk.TreeViewColumn('')
+-	self.MatchTree.append_column(self.MatchPropertyEnable_column)
+-	self.MatchTree.append_column(self.MatchPropertyNames_column)
+-	self.MatchPropertyName_cell=gtk.CellRendererText()
+-	self.MatchPropertyEnable_cell=gtk.CellRendererToggle()
+-	self.MatchPropertyEnable_cell.set_property("activatable", 1)
+-	
+-	self.MatchPropertyEnable_column.pack_start(self.MatchPropertyEnable_cell, expand=True)
+-	self.MatchPropertyNames_column.pack_start(self.MatchPropertyName_cell, expand=True)
+-
+-	self.MatchPropertyEnable_column.add_attribute(self.MatchPropertyEnable_cell, 'active', False)
+-	self.MatchPropertyNames_column.add_attribute(self.MatchPropertyName_cell, 'text', 1)
+-
+-	# Fill up the actions list store from the dictionary and create notebook pages for their parameters
+-	for MatchProperty in match_criteria:
+-		self.match_list_store.append([0, MatchProperty])
+-		match_criteria[MatchProperty]["widget"] = create_match_parameters_page(MatchProperty)
+-		self.MatchPropertyParameters_notebook.insert_page(match_criteria[MatchProperty]["widget"], None)
+-	
+-	self.MatchPropertyEnable_cell.connect("toggled", self.MatchPropertyEnable_toggle)
+-	self.MatchTree.connect("cursor-changed", self.MatchPropertyRow_selected)
+-	#select first row
+-	self.MatchTree.set_cursor(0, None, False)
+-	
+-	self.RuleEdit.show_all()
+-	
++        wTreeEdit = load_ui("RuleEdit")
++
++        # get the widgets that we use
++        # the window
++        self.RuleEdit = wTreeEdit.get_object("RuleEdit")
++        self.RuleEdit.set_icon_from_file(gdevilspie_icon)
++        self.RuleEdit.set_transient_for(MainWindow.RulesList)
++        # Match tree
++        self.MatchTree = wTreeEdit.get_object("MatchTree")
++        # Actions tree
++        self.ActionsTree = wTreeEdit.get_object("ActionsTreeList")
++        # Match parameters notebook
++        self.MatchPropertyParameters_notebook = wTreeEdit.get_object("MatchPropertyParameters_notebook")
++        # Action parameters notebook
++        self.ActionsParameters_notebook = wTreeEdit.get_object("ActionsParameters_notebook")
++        # rule name text box
++        self.RuleName_entry = wTreeEdit.get_object("RuleName_entry")
++        # rule notebook
++        self.RuleNotebook = wTreeEdit.get_object("RuleNotebook")
++        # Raw rule text view
++        self.RawRule = wTreeEdit.get_object("RawRule")
++        # the text buffer to hold the raw rule.
++        self.buffer = Gtk.TextBuffer()
++        self.RawRule.set_buffer(self.buffer)
++        # The save button
++        self.Save_button = wTreeEdit.get_object("Save")
++
++        # Connect to our signals
++
++        # create list stores and connect the models to the tree views
++        self.match_list_store = Gtk.ListStore(bool, str)
++        self.actions_list_store = Gtk.ListStore(bool,str)
++        self.MatchTree.set_model(self.match_list_store)
++        self.ActionsTree.set_model(self.actions_list_store)
++
++        # Action tree has two columns with two cells. One cell is a checkbox and the other is text
++        self.ActionsNames_column=Gtk.TreeViewColumn('Action')
++        self.ActionsEnable_column=Gtk.TreeViewColumn('')
++        self.ActionsTree.append_column(self.ActionsEnable_column)
++        self.ActionsTree.append_column(self.ActionsNames_column)
++        self.ActionsNames_cell=Gtk.CellRendererText()
++        self.ActionsEnable_cell=Gtk.CellRendererToggle()
++        self.ActionsEnable_cell.set_property("activatable", 1)
++        
++        self.ActionsEnable_column.pack_start(self.ActionsEnable_cell, expand=True)
++        self.ActionsNames_column.pack_start(self.ActionsNames_cell, expand=True)
++        
++        self.ActionsNames_column.add_attribute(self.ActionsNames_cell, 'text', 1)
++        self.ActionsEnable_column.add_attribute(self.ActionsEnable_cell, 'active', False)
++        
++        # Fill up the actions list store from the dictionary and create notebook pages for their parameters
++        for Action in actions_dict:
++          self.actions_list_store.append([0, Action])
++          #actions_dict[Action] = Gtk.Label(label=Action)
++          actions_dict[Action]["widget"] = create_action_parameters_page(Action)
++          self.ActionsParameters_notebook.insert_page(actions_dict[Action]["widget"], None, -1)
++        
++        # Reflect the checkbox state in the model
++        self.ActionsEnable_cell.connect("toggled", self.ActionsEnable_toggle)
++        # Flip the notebook pages when the selection changes
++        self.ActionsTree.connect("cursor-changed", self.Actions_selected)
++        # Select first action for consistent look
++        self.ActionsTree.set_cursor(Gtk.TreePath.new_from_indices([0]), None, False)
++
++        # Match tree has two columns with two cells. One cell is a checkbox and the other is text
++        self.MatchPropertyNames_column=Gtk.TreeViewColumn('Property')
++        self.MatchPropertyEnable_column=Gtk.TreeViewColumn('')
++        self.MatchTree.append_column(self.MatchPropertyEnable_column)
++        self.MatchTree.append_column(self.MatchPropertyNames_column)
++        self.MatchPropertyName_cell=Gtk.CellRendererText()
++        self.MatchPropertyEnable_cell=Gtk.CellRendererToggle()
++        self.MatchPropertyEnable_cell.set_property("activatable", 1)
++        
++        self.MatchPropertyEnable_column.pack_start(self.MatchPropertyEnable_cell, expand=True)
++        self.MatchPropertyNames_column.pack_start(self.MatchPropertyName_cell, expand=True)
++
++        self.MatchPropertyEnable_column.add_attribute(self.MatchPropertyEnable_cell, 'active', False)
++        self.MatchPropertyNames_column.add_attribute(self.MatchPropertyName_cell, 'text', 1)
++
++        # Fill up the actions list store from the dictionary and create notebook pages for their parameters
++        for MatchProperty in match_criteria:
++                self.match_list_store.append([0, MatchProperty])
++                match_criteria[MatchProperty]["widget"] = create_match_parameters_page(MatchProperty)
++                self.MatchPropertyParameters_notebook.insert_page(match_criteria[MatchProperty]["widget"], None, -1)
++        
++        self.MatchPropertyEnable_cell.connect("toggled", self.MatchPropertyEnable_toggle)
++        self.MatchTree.connect("cursor-changed", self.MatchPropertyRow_selected)
++        #select first row
++        self.MatchTree.set_cursor(Gtk.TreePath.new_from_indices([0]), None, False)
++        
++        wTreeEdit.connect_signals(self)
++        self.RuleEdit.show_all()
++        
+   def on_RuleNotebook_change_current_page(self, widget, page, pagenum):
+-	if ( self.RuleNotebook.get_current_page() == 2 ):
+-		NewRule = self.buffer.get_text(self.buffer.get_start_iter(),self.buffer.get_end_iter(),False)
+-		TempFile , TempFileName = tempfile.mkstemp(dir='/tmp')
+-		TempFile = open(TempFileName, 'w' )
+-		TempFile.write(NewRule)
+-		TempFile.close()
+-		matdict , actiondict = reader.read_file(TempFileName)
+-		MainWindow.Parse_EditRule(matdict, actiondict)
+-		os.remove(TempFileName)		
+-	elif ( pagenum == 2 ):
+-  		generated_rule = ""
+-		generated_rule = generate_rule(generated_rule)
+-		self.buffer.set_text(generated_rule)
+-		self.RawRule.set_buffer(self.buffer)
++        if ( self.RuleNotebook.get_current_page() == 2 ):
++                NewRule = self.buffer.get_text(self.buffer.get_start_iter(),self.buffer.get_end_iter(),False)
++                with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as rule_file:
++                    rule_file.write(NewRule)
++                    rule_file.flush()
++                    matdict, actiondict = reader.read_file(rule_file.name)
++                MainWindow.Parse_EditRule(matdict, actiondict)         
++        elif ( pagenum == 2 ):
++                generated_rule = ""
++                generated_rule = generate_rule(generated_rule)
++                self.buffer.set_text(generated_rule)
++                self.RawRule.set_buffer(self.buffer)
+   
+   def Actions_selected(self, widget):
+-	selected_row = self.ActionsTree.get_selection()
+-	(model, iter) = selected_row.get_selected()
+-	if (iter != None):
+-	  path = model.get_string_from_iter(iter)
+-	  self.ActionsParameters_notebook.set_current_page(int(path))
+-	  self.ActionsParameters_notebook.show()
+-	
++        selected_row = self.ActionsTree.get_selection()
++        (model, iter) = selected_row.get_selected()
++        if (iter != None):
++          path = model.get_string_from_iter(iter)
++          self.ActionsParameters_notebook.set_current_page(int(path))
++          self.ActionsParameters_notebook.show()
++        
+   def ActionsEnable_toggle(self, widget, path):
+-	iter = self.actions_list_store.get_iter_from_string(path)
+-	CurrentState = self.actions_list_store.get_value(iter, 0)
+-	self.actions_list_store.set_value(iter, 0 , not CurrentState)
++        iter = self.actions_list_store.get_iter_from_string(path)
++        CurrentState = self.actions_list_store.get_value(iter, 0)
++        self.actions_list_store.set_value(iter, 0 , not CurrentState)
+   
+   def MatchPropertyRow_selected(self, widget):
+-	selected_row = self.MatchTree.get_selection()
+-	(model, iter) = selected_row.get_selected()
+-	if (iter != None):
+-	  path = model.get_string_from_iter(iter)
+-	  self.MatchPropertyParameters_notebook.set_current_page(int(path))
++        selected_row = self.MatchTree.get_selection()
++        (model, iter) = selected_row.get_selected()
++        if (iter != None):
++          path = model.get_string_from_iter(iter)
++          self.MatchPropertyParameters_notebook.set_current_page(int(path))
+   
+   def MatchPropertyEnable_toggle(self, widget, path):
+-	iter = self.match_list_store.get_iter_from_string(path)
+-	CurrentState = self.match_list_store.get_value(iter, 0)
+-	self.match_list_store.set_value(iter, 0 , not CurrentState )
++        iter = self.match_list_store.get_iter_from_string(path)
++        CurrentState = self.match_list_store.get_value(iter, 0)
++        self.match_list_store.set_value(iter, 0 , not CurrentState )
+   
+-  def on_RuleEdit_destroy(self,widget):
+-	self.RuleEdit.destroy()
+-	
++        
+   def on_Fill_clicked(self,widget):
+-	if (DISABLE_FILLER == "True"):
+-	  error = gtk.MessageDialog(None, 0, gtk.MESSAGE_ERROR, gtk.BUTTONS_CLOSE, _("The filler is disabled."))
+-	  response = error.run()
+-	  error.destroy()
+-	else:
+-	  self.filler_window = FillerWindow()
++        if not isinstance(Gdk.Display.get_default(), GdkX11.X11Display):
++          error = Gtk.MessageDialog(None, 0, Gtk.MessageType.ERROR, Gtk.ButtonsType.CLOSE, _("Run gDevilspie in an X11 session to fill from an open window."))
++          response = error.run()
++          error.destroy()
++        else:
++          self.filler_window = FillerWindow()
+ 
+   def on_Cancel_clicked(self,widget):
+-	self.RuleEdit.destroy()
+-	
++        self.RuleEdit.destroy()
++        
+   def on_Save_clicked(self,widget):
+    str = self.RuleName_entry.get_text()
+    self.Save_Rule(str)
+    
+   def on_RuleName_entry_activate(self, widget, event):
+     self.RuleName_entry.set_text("")
+-    self.RuleName_entry.modify_text(gtk.STATE_NORMAL, gtk.gdk.color_parse("black"))
++    self.RuleName_entry.modify_text(Gtk.StateType.NORMAL, Gdk.color_parse("black"))
+     self.RuleName_entry.disconnect(self.handler_id)
+     self.Save_button.set_sensitive(True)
+    
+   def Save_Rule(self, str):
+-	if ( str == "" ):
+-	  self.Save_button.set_sensitive(False)
+-	  self.RuleName_entry.modify_text(gtk.STATE_NORMAL, gtk.gdk.color_parse("red"))
+-	  self.RuleName_entry.set_text(_("Please enter a name for the rule."))
+-	  self.handler_id = self.RuleName_entry.connect("focus-in-event", self.on_RuleName_entry_activate)
+-	  return
+-	path = os.path.expanduser("~/.devilspie/")
+-	new_Rule_file_name = str + ".ds"
+-	rulefileslist = os.listdir(dir)
+-	response = gtk.RESPONSE_YES
+-	if ( new_Rule_file_name in rulefileslist ):
+-	  error_dialog = gtk.MessageDialog(self.RuleEdit, gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_QUESTION, gtk.BUTTONS_YES_NO, _("The rule name you entered is already in use, do you want to overwrite it?"))
+-	  response = error_dialog.run()
+-	  error_dialog.destroy()
+-	if ( response == gtk.RESPONSE_YES ):
+-	  try:
+-		new_Rule_file_name = path + new_Rule_file_name
+-		f = open( new_Rule_file_name, 'w' )
+-		f.write( "; generated_rule " + str + "\n")
+-		generated_rule = ""
+-		generated_rule = generate_rule(generated_rule)
+-		f.write( generated_rule )
+-		f.close()
+-		MainWindow.update_rules_list()
+-		self.RuleEdit.destroy()
+-	  except:
+-		error_dialog = gtk.MessageDialog(self.RuleEdit, gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_ERROR, gtk.BUTTONS_CANCEL, _("Could not save the rule, please check file permissions and try again."))
+-		response = error_dialog.run()
+-		error_dialog.destroy()
+-	else:
+-		pass
++        if ( str == "" ):
++          self.Save_button.set_sensitive(False)
++          self.RuleName_entry.modify_text(Gtk.StateType.NORMAL, Gdk.color_parse("red"))
++          self.RuleName_entry.set_text(_("Please enter a name for the rule."))
++          self.handler_id = self.RuleName_entry.connect("focus-in-event", self.on_RuleName_entry_activate)
++          return
++        path = os.path.expanduser("~/.devilspie/")
++        new_Rule_file_name = str + ".ds"
++        rulefileslist = os.listdir(dir)
++        response = Gtk.ResponseType.YES
++        if ( new_Rule_file_name in rulefileslist ):
++          error_dialog = Gtk.MessageDialog(self.RuleEdit, Gtk.DialogFlags.DESTROY_WITH_PARENT, Gtk.MessageType.QUESTION, Gtk.ButtonsType.YES_NO, _("The rule name you entered is already in use, do you want to overwrite it?"))
++          response = error_dialog.run()
++          error_dialog.destroy()
++        if ( response == Gtk.ResponseType.YES ):
++          try:
++                new_Rule_file_name = path + new_Rule_file_name
++                generated_rule = generate_rule("")
++                with open(new_Rule_file_name, "w", encoding="utf-8") as rule_file:
++                    rule_file.write("; generated_rule " + str + "\n" + generated_rule)
++                MainWindow.update_rules_list()
++                self.RuleEdit.destroy()
++          except:
++                error_dialog = Gtk.MessageDialog(self.RuleEdit, Gtk.DialogFlags.DESTROY_WITH_PARENT, Gtk.MessageType.ERROR, Gtk.ButtonsType.CANCEL, _("Could not save the rule, please check file permissions and try again."))
++                response = error_dialog.run()
++                error_dialog.destroy()
++        else:
++                pass
+ 
+ class FillerWindow:
+   def __init__(self):
+-	try:
+-	# try to get our widgets from the gladefile
+-		wFillerList = gtk.glade.XML (gladefile, "FillerDialog")
+-	except:
+-	#inform the user there was an error and exit
+-		gtk.MessageDialog(None, 0, gtk.MESSAGE_ERROR, gtk.BUTTONS_CLOSE, _("Glade file not found, exiting.")).run()
+-		quit()
+-
+-	self.FillerDialog = wFillerList.get_widget("FillerDialog")
+-	self.cancel_button = wFillerList.get_widget("Filler_Cancel")
+-	self.fill_button = wFillerList.get_widget("Filler_Apply")
+-	self.window_tree = wFillerList.get_widget("FillerTree")
+-	
+-	self.cancel_button.connect("clicked", self.on_Filler_Cancel_clicked)
+-	self.fill_button.connect("clicked", self.on_Filler_Apply_clicked)
+-	self.FillerDialog.connect("destroy", self.on_FillerDialog_destroy)
+-	self.window_liststore = gtk.ListStore(gobject.TYPE_STRING)
+-	self.window_name_cell = gtk.CellRendererText()
+-	self.window_names_column = gtk.TreeViewColumn("Available Windows")
+-	self.window_names_column.pack_start(self.window_name_cell, expand=True)
+-	self.window_names_column.add_attribute(self.window_name_cell, 'text', 0)
+-	
+-	self.window_tree.append_column(self.window_names_column)
+-	self.window_tree.set_model(self.window_liststore)
+-	self.windowlist, self.namelist = filler.Get_Windowname_List()
+-	for name in self.namelist:
+-	  self.window_liststore.append([name])
+-	self.window_tree.connect("row-activated", self.on_window_tree_row_activated)
+-	self.FillerDialog.show_all()
++        wFillerList = load_ui("FillerDialog")
++
++        self.FillerDialog = wFillerList.get_object("FillerDialog")
++        self.FillerDialog.set_icon_from_file(gdevilspie_icon)
++        self.FillerDialog.set_transient_for(MainWindow.RuleEdit.RuleEdit)
++        self.cancel_button = wFillerList.get_object("Filler_Cancel")
++        self.fill_button = wFillerList.get_object("Filler_Apply")
++        self.window_tree = wFillerList.get_object("FillerTree")
++        
++        wFillerList.connect_signals(self)
++        self.window_liststore = Gtk.ListStore(str)
++        self.window_name_cell = Gtk.CellRendererText()
++        self.window_names_column = Gtk.TreeViewColumn("Available Windows")
++        self.window_names_column.pack_start(self.window_name_cell, expand=True)
++        self.window_names_column.add_attribute(self.window_name_cell, 'text', 0)
++        
++        self.window_tree.append_column(self.window_names_column)
++        self.window_tree.set_model(self.window_liststore)
++        self.windowlist, self.namelist = filler.Get_Windowname_List()
++        for name in self.namelist:
++          self.window_liststore.append([name])
++        self.window_tree.connect("row-activated", self.on_window_tree_row_activated)
++        self.FillerDialog.show_all()
+ 
+   def on_window_tree_row_activated(self, widget, path, view_column):
+-	self.on_Filler_Apply_clicked(widget)  
++        self.on_Filler_Apply_clicked(widget)  
+ 
+   def on_Filler_Apply_clicked(self, widget):
+    selected_window = self.window_tree.get_selection()
+    ( model , iter ) = selected_window.get_selected()
++   if iter is None:
++     return
+    path = model.get_path(iter)
+    window_object = self.windowlist[path[0]]
+    window_match_dict = filler.Matchdict_Window(window_object)
+    window_action_dict = filler.Actiondict_Window(window_object)
+    
+    for key in window_match_dict:
+-	 Entry = match_criteria[key]["entry_is"] 
+-	 Entry.set_text(str(window_match_dict[key]))
++         Entry = match_criteria[key]["entry_is"] 
++         Entry.set_text(str(window_match_dict[key]))
+    
+    Entry = actions_dict["geometry"]["input"]["xposition"] 
+    Entry.set_text(str(window_action_dict["xposition"]))
+@@ -849,46 +793,45 @@
+    Entry = actions_dict["geometry"]["input"]["width"] 
+    Entry.set_text(str(window_action_dict["width"]))
+    Entry = actions_dict["geometry"]["input"]["height"] 
+-   Entry.set_text(str(window_action_dict["height"]))	 
++   Entry.set_text(str(window_action_dict["height"]))     
+    Entry = actions_dict["set_workspace"]["input"]["workspace"] 
+-   Entry.set_text(str(window_action_dict["set_workspace"]))
++   if window_action_dict["set_workspace"] != "":
++     Entry.set_value(window_action_dict["set_workspace"])
+    
+    for row in MainWindow.RuleEdit.actions_list_store:
+-	 if ( row[1] == "fullscreen"):
+-	   if (window_action_dict["fullscreen"] == True):
+-		 row[0] = True
+-	 elif ( row[1] == "maximize"):
+-	   if (window_action_dict["maximize"] == True):
+-		 row[0] = True
+-	 elif ( row[1] == "maximize_horizontally"):
+-	   if (window_action_dict["maximize_horizontally"] == True):
+-		 row[0] = True
+-	 elif ( row[1] == "maximize_vertically"):
+-	   if (window_action_dict["maximize_vertically"] == True):
+-		 row[0] = True
+-	 elif ( row[1] == "minimize"):
+-	   if (window_action_dict["minimize"] == True):
+-		 row[0] = True
+-	 elif ( row[1] == "shade"):
+-	   if (window_action_dict["shade"] == True):
+-		 row[0] = True
+-	 elif ( row[1] == "pin"):
+-	   if (window_action_dict["pin"] == True):
+-		 row[0] = True
+-	 elif ( row[1] == "stick"):
+-	   if (window_action_dict["stick"] == True):
+-		 row[0] = True
+-	 else:
+-	   pass
++         if ( row[1] == "fullscreen"):
++           if (window_action_dict["fullscreen"] == True):
++                 row[0] = True
++         elif ( row[1] == "maximize"):
++           if (window_action_dict["maximize"] == True):
++                 row[0] = True
++         elif ( row[1] == "maximize_horizontally"):
++           if (window_action_dict["maximize_horizontally"] == True):
++                 row[0] = True
++         elif ( row[1] == "maximize_vertically"):
++           if (window_action_dict["maximize_vertically"] == True):
++                 row[0] = True
++         elif ( row[1] == "minimize"):
++           if (window_action_dict["minimize"] == True):
++                 row[0] = True
++         elif ( row[1] == "shade"):
++           if (window_action_dict["shade"] == True):
++                 row[0] = True
++         elif ( row[1] == "pin"):
++           if (window_action_dict["pin"] == True):
++                 row[0] = True
++         elif ( row[1] == "stick"):
++           if (window_action_dict["stick"] == True):
++                 row[0] = True
++         else:
++           pass
+    
+    self.FillerDialog.destroy()
+ 
+-  def on_FillerDialog_destroy(self, widget):
+-   self.FillerDialog.destroy()
+-		   
++                   
+   def on_Filler_Cancel_clicked(self, widget):
+    self.FillerDialog.destroy()
+ 
+-gtk.gdk.threads_init()
+-MainWindow = RulesListWindow()
+-gtk.main()
++if __name__ == "__main__":
++    MainWindow = RulesListWindow()
++    Gtk.main()
+--- a/gdevilspie.glade
++++ b/gdevilspie.glade
+@@ -1,8 +1,8 @@
+ <?xml version="1.0"?>
+-<glade-interface>
+-  <!-- interface-requires gtk+ 2.12 -->
++<interface domain="gdevilspie">
++  <requires lib="gtk+" version="3.0"/>
+   <!-- interface-naming-policy toplevel-contextual -->
+-  <widget class="GtkDialog" id="RulesList">
++  <object class="GtkDialog" id="RulesList">
+     <property name="width_request">400</property>
+     <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+     <property name="border_width">5</property>
+@@ -10,25 +10,24 @@
+     <property name="window_position">center</property>
+     <property name="default_width">300</property>
+     <property name="default_height">300</property>
+-    <property name="icon">gdevilspie.png</property>
+     <property name="type_hint">normal</property>
+-    <property name="has_separator">False</property>
+     <signal name="destroy" handler="on_RulesList_destroy"/>
+     <child internal-child="vbox">
+-      <widget class="GtkVBox" id="dialog-vbox1">
++      <object class="GtkVBox" id="dialog-vbox1">
+         <property name="visible">True</property>
+         <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+         <property name="orientation">vertical</property>
+         <property name="spacing">2</property>
+         <child>
+-          <widget class="GtkVBox" id="vbox1">
++          <object class="GtkVBox" id="vbox1">
+             <property name="visible">True</property>
+             <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+             <child>
+-              <widget class="GtkHBox" id="hbox4">
++              <object class="GtkHBox" id="hbox4">
+                 <property name="visible">True</property>
+                 <child>
+-                  <widget class="GtkScrolledWindow" id="scrolledwindow1">
++                  <object class="GtkScrolledWindow" id="scrolledwindow1">
++                    <property name="vexpand">True</property>
+                     <property name="visible">True</property>
+                     <property name="can_focus">True</property>
+                     <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+@@ -36,42 +35,42 @@
+                     <property name="vscrollbar_policy">automatic</property>
+                     <property name="shadow_type">out</property>
+                     <child>
+-                      <widget class="GtkTreeView" id="RulesTree">
++                      <object class="GtkTreeView" id="RulesTree">
+                         <property name="visible">True</property>
+                         <property name="can_focus">True</property>
+                         <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+                         <property name="reorderable">True</property>
+                         <property name="rules_hint">True</property>
+                         <property name="enable_tree_lines">True</property>
+-                      </widget>
++                      </object>
+                     </child>
+-                  </widget>
++                  </object>
+                   <packing>
+                     <property name="padding">4</property>
+                     <property name="position">0</property>
+                   </packing>
+                 </child>
+-              </widget>
++              </object>
+               <packing>
+                 <property name="padding">2</property>
+                 <property name="position">0</property>
+               </packing>
+             </child>
+-          </widget>
++          </object>
+           <packing>
+             <property name="position">1</property>
+           </packing>
+         </child>
+         <child>
+-          <widget class="GtkHBox" id="hbox3">
++          <object class="GtkHBox" id="hbox3">
+             <property name="visible">True</property>
+             <child>
+-              <widget class="GtkLabel" id="DaemonStatus">
++              <object class="GtkLabel" id="DaemonStatus">
+                 <property name="visible">True</property>
+                 <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+                 <property name="label" translatable="yes">&lt;b&gt;The devilspie daemon is &lt;span foreground="red"&gt;not&lt;/span&gt; running    &lt;/b&gt;</property>
+                 <property name="use_markup">True</property>
+-              </widget>
++              </object>
+               <packing>
+                 <property name="expand">False</property>
+                 <property name="fill">False</property>
+@@ -80,7 +79,7 @@
+               </packing>
+             </child>
+             <child>
+-              <widget class="GtkButton" id="ToggleDaemon">
++              <object class="GtkButton" id="ToggleDaemon">
+                 <property name="width_request">65</property>
+                 <property name="height_request">27</property>
+                 <property name="visible">True</property>
+@@ -88,16 +87,16 @@
+                 <property name="receives_default">True</property>
+                 <signal name="clicked" handler="on_ToggleDaemon_clicked"/>
+                 <child>
+-                  <widget class="GtkLabel" id="ToggleDaemonLabel">
++                  <object class="GtkLabel" id="ToggleDaemonLabel">
+                     <property name="width_request">65</property>
+                     <property name="height_request">35</property>
+                     <property name="visible">True</property>
+                     <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+                     <property name="label" translatable="yes">&lt;b&gt;&lt;span foreground="dark green"&gt;Start&lt;/span&gt;&lt;/b&gt;</property>
+                     <property name="use_markup">True</property>
+-                  </widget>
++                  </object>
+                 </child>
+-              </widget>
++              </object>
+               <packing>
+                 <property name="expand">False</property>
+                 <property name="fill">False</property>
+@@ -105,7 +104,7 @@
+                 <property name="position">1</property>
+               </packing>
+             </child>
+-          </widget>
++          </object>
+           <packing>
+             <property name="expand">False</property>
+             <property name="fill">False</property>
+@@ -113,33 +112,33 @@
+           </packing>
+         </child>
+         <child>
+-          <widget class="GtkCheckButton" id="DaemonAutostart">
++          <object class="GtkCheckButton" id="DaemonAutostart">
+             <property name="label" translatable="yes">Start devilspie daemon automatically at login</property>
+             <property name="visible">True</property>
+             <property name="can_focus">True</property>
+             <property name="receives_default">False</property>
+             <property name="draw_indicator">True</property>
+             <signal name="toggled" handler="on_DaemonAutostart_toggled"/>
+-          </widget>
++          </object>
+           <packing>
+             <property name="expand">False</property>
+             <property name="position">3</property>
+           </packing>
+         </child>
+         <child internal-child="action_area">
+-          <widget class="GtkHButtonBox" id="dialog-action_area1">
++          <object class="GtkHButtonBox" id="dialog-action_area1">
+             <property name="visible">True</property>
+             <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+             <property name="layout_style">end</property>
+             <child>
+-              <widget class="GtkButton" id="EditRule">
++              <object class="GtkButton" id="EditRule">
+                 <property name="label">gtk-edit</property>
+                 <property name="visible">True</property>
+                 <property name="can_focus">True</property>
+                 <property name="receives_default">True</property>
+                 <property name="use_stock">True</property>
+                 <signal name="clicked" handler="on_EditRule_clicked"/>
+-              </widget>
++              </object>
+               <packing>
+                 <property name="expand">False</property>
+                 <property name="fill">False</property>
+@@ -147,7 +146,7 @@
+               </packing>
+             </child>
+             <child>
+-              <widget class="GtkButton" id="AddRule">
++              <object class="GtkButton" id="AddRule">
+                 <property name="label">gtk-add</property>
+                 <property name="visible">True</property>
+                 <property name="can_focus">True</property>
+@@ -155,7 +154,7 @@
+                 <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+                 <property name="use_stock">True</property>
+                 <signal name="clicked" handler="on_AddRule_clicked"/>
+-              </widget>
++              </object>
+               <packing>
+                 <property name="expand">False</property>
+                 <property name="fill">False</property>
+@@ -163,7 +162,7 @@
+               </packing>
+             </child>
+             <child>
+-              <widget class="GtkButton" id="DeleteRule">
++              <object class="GtkButton" id="DeleteRule">
+                 <property name="label">gtk-delete</property>
+                 <property name="visible">True</property>
+                 <property name="can_focus">True</property>
+@@ -171,7 +170,7 @@
+                 <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+                 <property name="use_stock">True</property>
+                 <signal name="clicked" handler="on_DeleteRule_clicked"/>
+-              </widget>
++              </object>
+               <packing>
+                 <property name="expand">False</property>
+                 <property name="fill">False</property>
+@@ -179,7 +178,7 @@
+               </packing>
+             </child>
+             <child>
+-              <widget class="GtkButton" id="Quit">
++              <object class="GtkButton" id="Quit">
+                 <property name="label">gtk-close</property>
+                 <property name="visible">True</property>
+                 <property name="can_focus">True</property>
+@@ -187,24 +186,24 @@
+                 <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+                 <property name="use_stock">True</property>
+                 <signal name="clicked" handler="on_Quit_clicked"/>
+-              </widget>
++              </object>
+               <packing>
+                 <property name="expand">False</property>
+                 <property name="fill">False</property>
+                 <property name="position">3</property>
+               </packing>
+             </child>
+-          </widget>
++          </object>
+           <packing>
+             <property name="expand">False</property>
+             <property name="pack_type">end</property>
+             <property name="position">0</property>
+           </packing>
+         </child>
+-      </widget>
++      </object>
+     </child>
+-  </widget>
+-  <widget class="GtkDialog" id="RuleEdit">
++  </object>
++  <object class="GtkDialog" id="RuleEdit">
+     <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+     <property name="border_width">5</property>
+     <property name="title" translatable="yes">Rule Editor</property>
+@@ -213,205 +212,182 @@
+     <property name="default_width">500</property>
+     <property name="default_height">500</property>
+     <property name="destroy_with_parent">True</property>
+-    <property name="icon">gdevilspie.png</property>
+     <property name="type_hint">dialog</property>
+     <property name="skip_taskbar_hint">True</property>
+-    <property name="transient_for">RulesList</property>
+-    <property name="has_separator">False</property>
+-    <signal name="destroy" handler="on_RuleEdit_destroy"/>
+     <child internal-child="vbox">
+-      <widget class="GtkVBox" id="dialog-vbox2">
++      <object class="GtkVBox" id="dialog-vbox2">
+         <property name="visible">True</property>
+         <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+         <child>
+-          <widget class="GtkHBox" id="hbox1">
++          <object class="GtkHBox" id="hbox1">
+             <property name="visible">True</property>
+             <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+             <child>
+-              <widget class="GtkLabel" id="label1">
++              <object class="GtkLabel" id="label1">
+                 <property name="visible">True</property>
+                 <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+                 <property name="label" translatable="yes">&lt;b&gt;Create a new rule named :              &lt;/b&gt;</property>
+                 <property name="use_markup">True</property>
+-              </widget>
++              </object>
+               <packing>
+                 <property name="expand">False</property>
+                 <property name="position">0</property>
+               </packing>
+             </child>
+             <child>
+-              <widget class="GtkEntry" id="RuleName_entry">
++              <object class="GtkEntry" id="RuleName_entry">
+                 <property name="visible">True</property>
+                 <property name="can_focus">True</property>
+                 <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+-              </widget>
++              </object>
+               <packing>
+                 <property name="position">1</property>
+               </packing>
+             </child>
+-          </widget>
++          </object>
+           <packing>
+             <property name="expand">False</property>
+             <property name="position">1</property>
+           </packing>
+         </child>
+         <child>
+-          <widget class="GtkNotebook" id="RuleNotebook">
++          <object class="GtkNotebook" id="RuleNotebook">
+             <property name="visible">True</property>
+             <property name="can_focus">True</property>
+             <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+             <signal name="switch_page" handler="on_RuleNotebook_change_current_page"/>
+-            <signal name="change_current_page" handler="on_RuleNotebook_change_current_page"/>
+             <child>
+-              <widget class="GtkHPaned" id="hpaned1">
++              <object class="GtkHPaned" id="hpaned1">
+                 <property name="visible">True</property>
+                 <property name="can_focus">True</property>
+                 <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+                 <child>
+-                  <widget class="GtkTreeView" id="MatchTree">
++                  <object class="GtkTreeView" id="MatchTree">
+                     <property name="visible">True</property>
+                     <property name="can_focus">True</property>
+                     <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+-                  </widget>
++                  </object>
+                   <packing>
+                     <property name="resize">False</property>
+                     <property name="shrink">True</property>
+                   </packing>
+                 </child>
+                 <child>
+-                  <widget class="GtkNotebook" id="MatchPropertyParameters_notebook">
++                  <object class="GtkNotebook" id="MatchPropertyParameters_notebook">
+                     <property name="visible">True</property>
+                     <property name="can_focus">True</property>
+                     <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+                     <property name="tab_pos">left</property>
+                     <property name="show_tabs">False</property>
+-                    <property name="tab_border">10</property>
+-                  </widget>
++                  </object>
+                   <packing>
+                     <property name="resize">True</property>
+                     <property name="shrink">True</property>
+                   </packing>
+                 </child>
+-              </widget>
++              </object>
+             </child>
+-            <child>
+-              <widget class="GtkLabel" id="Matching1">
++            <child type="tab">
++              <object class="GtkLabel" id="Matching1">
+                 <property name="visible">True</property>
+                 <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+                 <property name="label" translatable="yes">Matching</property>
+-              </widget>
+-              <packing>
+-                <property name="tab_fill">False</property>
+-                <property name="type">tab</property>
+-              </packing>
++              </object>
+             </child>
+             <child>
+-              <widget class="GtkHPaned" id="hpaned2">
++              <object class="GtkHPaned" id="hpaned2">
+                 <property name="visible">True</property>
+                 <property name="can_focus">True</property>
+                 <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+                 <child>
+-                  <widget class="GtkScrolledWindow" id="scrolledwindow2">
++                  <object class="GtkScrolledWindow" id="scrolledwindow2">
+                     <property name="visible">True</property>
+                     <property name="can_focus">True</property>
+                     <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+                     <property name="hscrollbar_policy">automatic</property>
+                     <property name="vscrollbar_policy">automatic</property>
+                     <child>
+-                      <widget class="GtkTreeView" id="ActionsTreeList">
++                      <object class="GtkTreeView" id="ActionsTreeList">
+                         <property name="width_request">200</property>
+                         <property name="visible">True</property>
+                         <property name="can_focus">True</property>
+                         <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+-                      </widget>
++                      </object>
+                     </child>
+-                  </widget>
++                  </object>
+                   <packing>
+                     <property name="resize">False</property>
+                     <property name="shrink">True</property>
+                   </packing>
+                 </child>
+                 <child>
+-                  <widget class="GtkNotebook" id="ActionsParameters_notebook">
++                  <object class="GtkNotebook" id="ActionsParameters_notebook">
+                     <property name="visible">True</property>
+                     <property name="can_focus">True</property>
+                     <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+                     <property name="show_tabs">False</property>
+-                  </widget>
++                  </object>
+                   <packing>
+                     <property name="resize">True</property>
+                     <property name="shrink">True</property>
+                   </packing>
+                 </child>
+-              </widget>
+-              <packing>
+-                <property name="position">1</property>
+-              </packing>
++              </object>
+             </child>
+-            <child>
+-              <widget class="GtkLabel" id="Actions1">
++            <child type="tab">
++              <object class="GtkLabel" id="Actions1">
+                 <property name="visible">True</property>
+                 <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+                 <property name="label" translatable="yes">Actions</property>
+-              </widget>
+-              <packing>
+-                <property name="position">1</property>
+-                <property name="tab_fill">False</property>
+-                <property name="type">tab</property>
+-              </packing>
++              </object>
+             </child>
+             <child>
+-              <widget class="GtkScrolledWindow" id="scrolledwindow3">
++              <object class="GtkScrolledWindow" id="scrolledwindow3">
+                 <property name="visible">True</property>
+                 <property name="can_focus">True</property>
+                 <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+                 <property name="hscrollbar_policy">automatic</property>
+                 <property name="vscrollbar_policy">automatic</property>
+                 <child>
+-                  <widget class="GtkTextView" id="RawRule">
++                  <object class="GtkTextView" id="RawRule">
+                     <property name="visible">True</property>
+                     <property name="can_focus">True</property>
+                     <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+                     <property name="editable">False</property>
+-                  </widget>
++                  </object>
+                 </child>
+-              </widget>
++              </object>
+               <packing>
+                 <property name="position">2</property>
+               </packing>
+             </child>
+-            <child>
+-              <widget class="GtkLabel" id="Raw">
++            <child type="tab">
++              <object class="GtkLabel" id="Raw">
+                 <property name="visible">True</property>
+                 <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+                 <property name="label" translatable="yes">Raw</property>
+-              </widget>
+-              <packing>
+-                <property name="position">2</property>
+-                <property name="tab_fill">False</property>
+-                <property name="type">tab</property>
+-              </packing>
++              </object>
+             </child>
+-          </widget>
++          </object>
+           <packing>
+             <property name="pack_type">end</property>
+             <property name="position">2</property>
+           </packing>
+         </child>
+         <child internal-child="action_area">
+-          <widget class="GtkHButtonBox" id="dialog-action_area2">
++          <object class="GtkHButtonBox" id="dialog-action_area2">
+             <property name="visible">True</property>
+             <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+             <property name="layout_style">end</property>
+             <child>
+-              <widget class="GtkButton" id="Fill">
++              <object class="GtkButton" id="Fill">
+                 <property name="label" translatable="yes">Get</property>
+                 <property name="visible">True</property>
+                 <property name="can_focus">True</property>
+                 <property name="receives_default">True</property>
+                 <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+                 <signal name="clicked" handler="on_Fill_clicked"/>
+-              </widget>
++              </object>
+               <packing>
+                 <property name="expand">False</property>
+                 <property name="fill">False</property>
+@@ -419,7 +395,7 @@
+               </packing>
+             </child>
+             <child>
+-              <widget class="GtkButton" id="Save">
++              <object class="GtkButton" id="Save">
+                 <property name="label">gtk-save</property>
+                 <property name="visible">True</property>
+                 <property name="can_focus">True</property>
+@@ -427,7 +403,7 @@
+                 <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+                 <property name="use_stock">True</property>
+                 <signal name="clicked" handler="on_Save_clicked"/>
+-              </widget>
++              </object>
+               <packing>
+                 <property name="expand">False</property>
+                 <property name="fill">False</property>
+@@ -436,7 +412,7 @@
+               </packing>
+             </child>
+             <child>
+-              <widget class="GtkButton" id="Cancel">
++              <object class="GtkButton" id="Cancel">
+                 <property name="label">gtk-cancel</property>
+                 <property name="visible">True</property>
+                 <property name="can_focus">True</property>
+@@ -444,7 +420,7 @@
+                 <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+                 <property name="use_stock">True</property>
+                 <signal name="clicked" handler="on_Cancel_clicked"/>
+-              </widget>
++              </object>
+               <packing>
+                 <property name="expand">False</property>
+                 <property name="fill">False</property>
+@@ -452,17 +428,17 @@
+                 <property name="position">1</property>
+               </packing>
+             </child>
+-          </widget>
++          </object>
+           <packing>
+             <property name="expand">False</property>
+             <property name="pack_type">end</property>
+             <property name="position">0</property>
+           </packing>
+         </child>
+-      </widget>
++      </object>
+     </child>
+-  </widget>
+-  <widget class="GtkDialog" id="FillerDialog">
++  </object>
++  <object class="GtkDialog" id="FillerDialog">
+     <property name="width_request">300</property>
+     <property name="height_request">300</property>
+     <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+@@ -471,42 +447,38 @@
+     <property name="modal">True</property>
+     <property name="window_position">center-on-parent</property>
+     <property name="destroy_with_parent">True</property>
+-    <property name="icon">gdevilspie.png</property>
+     <property name="type_hint">dialog</property>
+     <property name="skip_taskbar_hint">True</property>
+-    <property name="transient_for">RuleEdit</property>
+-    <property name="has_separator">False</property>
+-    <signal name="destroy" handler="on_FillerDialog_destroy"/>
+     <child internal-child="vbox">
+-      <widget class="GtkVBox" id="dialog-vbox3">
++      <object class="GtkVBox" id="dialog-vbox3">
+         <property name="visible">True</property>
+         <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+         <property name="spacing">2</property>
+         <child>
+-          <widget class="GtkScrolledWindow" id="scrolledwindow4">
++          <object class="GtkScrolledWindow" id="scrolledwindow4">
+             <property name="visible">True</property>
+             <property name="can_focus">True</property>
+             <property name="hscrollbar_policy">automatic</property>
+             <property name="vscrollbar_policy">automatic</property>
+             <child>
+-              <widget class="GtkTreeView" id="FillerTree">
++              <object class="GtkTreeView" id="FillerTree">
+                 <property name="visible">True</property>
+                 <property name="can_focus">True</property>
+                 <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+-              </widget>
++              </object>
+             </child>
+-          </widget>
++          </object>
+           <packing>
+             <property name="position">1</property>
+           </packing>
+         </child>
+         <child internal-child="action_area">
+-          <widget class="GtkHButtonBox" id="dialog-action_area3">
++          <object class="GtkHButtonBox" id="dialog-action_area3">
+             <property name="visible">True</property>
+             <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+             <property name="layout_style">end</property>
+             <child>
+-              <widget class="GtkButton" id="Filler_Apply">
++              <object class="GtkButton" id="Filler_Apply">
+                 <property name="label">gtk-apply</property>
+                 <property name="visible">True</property>
+                 <property name="can_focus">True</property>
+@@ -514,7 +486,7 @@
+                 <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+                 <property name="use_stock">True</property>
+                 <signal name="clicked" handler="on_Filler_Apply_clicked"/>
+-              </widget>
++              </object>
+               <packing>
+                 <property name="expand">False</property>
+                 <property name="fill">False</property>
+@@ -522,7 +494,7 @@
+               </packing>
+             </child>
+             <child>
+-              <widget class="GtkButton" id="Filler_Cancel">
++              <object class="GtkButton" id="Filler_Cancel">
+                 <property name="label">gtk-cancel</property>
+                 <property name="visible">True</property>
+                 <property name="can_focus">True</property>
+@@ -530,24 +502,24 @@
+                 <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+                 <property name="use_stock">True</property>
+                 <signal name="clicked" handler="on_Filler_Cancel_clicked"/>
+-              </widget>
++              </object>
+               <packing>
+                 <property name="expand">False</property>
+                 <property name="fill">False</property>
+                 <property name="position">1</property>
+               </packing>
+             </child>
+-          </widget>
++          </object>
+           <packing>
+             <property name="expand">False</property>
+             <property name="pack_type">end</property>
+             <property name="position">0</property>
+           </packing>
+         </child>
+-      </widget>
++      </object>
+     </child>
+-  </widget>
+-  <widget class="GtkAboutDialog" id="AboutgDevilepie">
++  </object>
++  <object class="GtkAboutDialog" id="AboutgDevilepie">
+     <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+     <property name="border_width">5</property>
+     <property name="title" translatable="yes">About gDevilspie</property>
+@@ -557,7 +529,6 @@
+     <property name="destroy_with_parent">True</property>
+     <property name="type_hint">dialog</property>
+     <property name="skip_pager_hint">True</property>
+-    <property name="transient_for">RulesList</property>
+     <property name="program_name">gDevilspie</property>
+     <property name="version">svn</property>
+     <property name="copyright" translatable="yes">Copyright (C) Islam Amer 2008 &lt;iamer@open-craft.com&gt;</property>
+@@ -573,54 +544,51 @@
+ Kareem Kenawy (theSamo)
+ Mohamed Hazem(CVirus)</property>
+     <property name="documenters"></property>
+-    <property name="logo">gdevilspie.png</property>
+     <property name="wrap_license">True</property>
+     <child internal-child="vbox">
+-      <widget class="GtkVBox" id="dialog-vbox4">
++      <object class="GtkVBox" id="dialog-vbox4">
+         <property name="visible">True</property>
+         <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+         <property name="spacing">2</property>
+         <child internal-child="action_area">
+-          <widget class="GtkHButtonBox" id="dialog-action_area4">
++          <object class="GtkHButtonBox" id="dialog-action_area4">
+             <property name="visible">True</property>
+             <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+             <property name="layout_style">end</property>
+-          </widget>
++          </object>
+           <packing>
+             <property name="expand">False</property>
+             <property name="pack_type">end</property>
+             <property name="position">0</property>
+           </packing>
+         </child>
+-      </widget>
++      </object>
+     </child>
+-  </widget>
+-  <widget class="GtkMenu" id="StatusPopupMenu">
++  </object>
++  <object class="GtkMenu" id="StatusPopupMenu">
+     <property name="visible">True</property>
+     <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+     <child>
+-      <widget class="GtkImageMenuItem" id="About">
++      <object class="GtkImageMenuItem" id="About">
+         <property name="label">gtk-about</property>
+         <property name="visible">True</property>
+         <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+-        <property name="tooltip" translatable="yes">About</property>
++        <property name="tooltip_text" translatable="yes">About</property>
+         <property name="use_underline">True</property>
+         <property name="use_stock">True</property>
+-        <signal name="activate_item" handler="on_About_activate"/>
+         <signal name="activate" handler="on_About_activate"/>
+-      </widget>
++      </object>
+     </child>
+     <child>
+-      <widget class="GtkImageMenuItem" id="Quit">
++      <object class="GtkImageMenuItem" id="TrayQuit">
+         <property name="label">gtk-quit</property>
+         <property name="visible">True</property>
+         <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+-        <property name="tooltip" translatable="yes">Quit</property>
++        <property name="tooltip_text" translatable="yes">Quit</property>
+         <property name="use_underline">True</property>
+         <property name="use_stock">True</property>
+-        <signal name="activate_item" handler="on_Quit_activate"/>
+         <signal name="activate" handler="on_Quit_activate"/>
+-      </widget>
++      </object>
+     </child>
+-  </widget>
+-</glade-interface>
++  </object>
++</interface>
+--- a/gDevilspie/filler.py
++++ b/gDevilspie/filler.py
+@@ -1,10 +1,13 @@
+-import wnck
++import gi
+ 
+-#Get Default X screen
+-screen = wnck.screen_get_default()
++gi.require_version("Wnck", "3.0")
++from gi.repository import Wnck
+ 
+ #List of wnck.Window objects
+ def Get_Window_List():
++    screen = Wnck.Screen.get_default()
++    if screen is None:
++        return []
+     screen.force_update()
+     return screen.get_windows()
+ 
+@@ -13,17 +16,18 @@
+     windowlist = Get_Window_List()
+     namelist = []
+     for i in windowlist:
+-		namelist.append(i.get_name())
++                namelist.append(i.get_name())
+     return windowlist , namelist
+ 
+ #this function takes a window object (choosen by the user) and returns its matching criteria
+ def Matchdict_Window(window):
+     matchdict = {}
+     matchdict["window_name"] = window.get_name()
+-    matchdict["window_role"] = window.get_window_type().value_nick
+-    matchdict["window_class"] = window.get_class_group().get_name()
++    matchdict["window_role"] = window.get_role() or ""
++    matchdict["window_class"] = window.get_class_group_name() or ""
+     matchdict["window_xid"] = window.get_xid()
+-    matchdict["application_name"] = window.get_application().get_name()
++    application = window.get_application()
++    matchdict["application_name"] = application.get_name() if application else ""
+     matchdict["window_property"] = "" #Is that even relevant? nobody uses it.
+     if window.get_workspace() != None:
+         matchdict["window_workspace"] = window.get_workspace().get_number()
+--- a/gDevilspie/reader.py
++++ b/gDevilspie/reader.py
+@@ -1,72 +1,71 @@
+ import gDevilspie.sparser as parser
+-import string
+ 
+ def geo_parse(gstring):
+-	return
++        return
+ 
+ def stripper(listitem):
+-	return listitem.strip('"')
++        return listitem.strip('"')
+ 
+ def not_checker(matdict,item):
+-	if item[0] == 'is':
+-		matdict[str(item[1].pop())] = ["is","not", stripper(item[2])]
+-	elif item[0] == 'matches':
+-		matdict[str(item[1].pop())] = ["matches","not", stripper(item[2])]
+-	elif item[0]== 'contains':
+-		matdict[str(item[1].pop())] = ["contains","not", stripper(item[2])]
++        if item[0] == 'is':
++                matdict[str(item[1].pop())] = ["is","not", stripper(item[2])]
++        elif item[0] == 'matches':
++                matdict[str(item[1].pop())] = ["matches","not", stripper(item[2])]
++        elif item[0]== 'contains':
++                matdict[str(item[1].pop())] = ["contains","not", stripper(item[2])]
+     
+ def condition_checker(matdict,item):
+-	if item[0] == 'is':
+-		matdict[str(item[1].pop())] = ["is", stripper(item[2])]
+-	elif item[0] == 'matches':
+-		matdict[str(item[1].pop())] = ["matches", stripper(item[2])]
+-	elif item[0]== 'contains':
+-		matdict[str(item[1].pop())] = ["contains", stripper(item[2])]
+-	elif item[0]== "not":
+-		not_checker(matdict,item[1])
++        if item[0] == 'is':
++                matdict[str(item[1].pop())] = ["is", stripper(item[2])]
++        elif item[0] == 'matches':
++                matdict[str(item[1].pop())] = ["matches", stripper(item[2])]
++        elif item[0]== 'contains':
++                matdict[str(item[1].pop())] = ["contains", stripper(item[2])]
++        elif item[0]== "not":
++                not_checker(matdict,item[1])
+ 
+ def read_file(filename):
+ # open a file and pass it to parser.py
+-	foo = open(filename)
+-	z = parser.parse_file(foo)
++        with open(filename, encoding="utf-8") as rule_file:
++                z = parser.parse_file(rule_file)
+ # clean some of the parser crap
+-	rule = z[0]
++        rule = z[0]
+ 
+ #the dicts we will use
+-	matdict = {}
+-	actiondict = {}
++        matdict = {}
++        actiondict = {}
+ 
+ #the reader part...
+-	if rule[0] == 'if':
+-		matcond = z[0][1]
+-		action = z[0][2]
+-
+-	if matcond[0] in "and" or "begin":
+-		for item in matcond:
+-			condition_checker(matdict, item)
+-	else:
+-		condition_checker(matdict, matcond)
+-			
+-
+-	if action[0] == 'begin':
+-		#FIXME: Handle Actions correctly.
+-		for i in action[1:]:
+-			if len(i) > 1:
+-				if ( i[1] == "'" ):
+-					last = len(i) - 1
+-					joint = string.join(i[2:last])
+-					actiondict[i[0]] = stripper(joint)
+-				else:
+-					actiondict[i[0]] = stripper(i[1])
+-			elif i[0][:2] != "un":
+-				actiondict[i[0]] = "True"
+-			elif i[0][:2] == "un":
+-				actiondict[i[0][2:]] = "False"
+-				actiondict[i[0]] = "True"
+-	else:
+-		actiondict[action[0]] = action[1]
++        if rule[0] == 'if':
++                matcond = z[0][1]
++                action = z[0][2]
++
++        if matcond[0] in ("and", "begin"):
++                for item in matcond:
++                        condition_checker(matdict, item)
++        else:
++                condition_checker(matdict, matcond)
++                        
++
++        if action[0] == 'begin':
++                #FIXME: Handle Actions correctly.
++                for i in action[1:]:
++                        if len(i) > 1:
++                                if ( i[1] == "'" ):
++                                        last = len(i) - 1
++                                        joint = " ".join(i[2:last])
++                                        actiondict[i[0]] = stripper(joint)
++                                else:
++                                        actiondict[i[0]] = stripper(i[1])
++                        elif i[0][:2] != "un":
++                                actiondict[i[0]] = "True"
++                        elif i[0][:2] == "un":
++                                actiondict[i[0][2:]] = "False"
++                                actiondict[i[0]] = "True"
++        else:
++                actiondict[action[0]] = stripper(action[1]) if len(action) > 1 else "True"
+ 
+-	return [matdict,actiondict]
++        return [matdict,actiondict]
+ 
+ 
+ #print read_file("test.ds")
+--- a/gDevilspie/sparser.py
++++ b/gDevilspie/sparser.py
+@@ -60,7 +60,6 @@
+ 
+ # Exception raised by parse_exr.
+ #
+-syntax_error = 'syntax error'
+ 
+ 
+ # Parse an S-expression.
+@@ -72,12 +71,12 @@
+ #
+ def parse_expr(tokens):
+     if (not tokens) or tokens[0] != '(':
+-        raise syntax_error, 'expected "("'
++        raise SyntaxError('expected "("')
+     tokens = tokens[1:]
+     expr = []
+     while 1:
+         if not tokens:
+-            raise syntax_error, 'missing ")"'
++            raise SyntaxError('missing ")"')
+         if tokens[0] == ')':
+             return expr, tokens[1:]
+         elif tokens[0] == '(':
